@@ -1,0 +1,290 @@
+{
+  "id": "fc1ec849-292e-4598-a8a4-fcd2d0983330",
+  "title": "Build a Tiny Text Classifier with UV Package Manager",
+  "tagline": "From zero to a working AI model using UV, pandas, and scikit‑learn – no classes, no charts.",
+  "description": "In this beginner‑friendly tutorial we create a small command‑line text‑classification app. You’ll learn how to bootstrap a modern Python project with UV, manage dependencies, write clean functional code, and ship a trained model – all in under four hours.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "You need a lightweight, reproducible way to train a binary sentiment classifier on a tiny CSV dataset and expose a simple CLI for predictions. The project must use current best practices (pyproject.toml, pathlib, type hints) and be managed with the fast UV package manager.",
+  "end_state": "A ready‑to‑run repository that can train a model with `python -m src.train` and predict sentiment with `python -m src.predict \"I love this!\"`. The environment is reproducible via `uv lock` and `uv sync`.",
+  "prerequisites": [
+    "Basic Python syntax (functions, typing)",
+    "Familiarity with the command line",
+    "Understanding of CSV files"
+  ],
+  "learning_outcomes": [
+    "Initialize a modern Python project with UV",
+    "Write functional data‑processing pipelines with pandas and scikit‑learn",
+    "Persist and load models using joblib",
+    "Structure code in a src/ layout and test it with pytest"
+  ],
+  "repo_layout": [
+    "{'pyproject.toml': 'Project metadata and dependencies', 'uv.lock': 'Locked dependency versions', 'src/__init__.py': 'Makes src a package', 'src/train.py': 'Training script', 'src/predict.py': 'Inference CLI', 'src/utils.py': 'Helper functions (data loading, pipeline creation)', 'data/sample.csv': 'Tiny labeled dataset', 'tests/test_pipeline.py': 'Pytest for the preprocessing pipeline', 'r_e_a_d_m_e.md': 'Project overview'}"
+  ],
+  "stack": [
+    {
+      "name": "python",
+      "version": "3.12",
+      "purpose": "Core language"
+    },
+    {
+      "name": "uv",
+      "version": "0.4",
+      "purpose": "Fast package manager and virtual‑env tool"
+    },
+    {
+      "name": "pandas",
+      "version": "2.2",
+      "purpose": "CSV handling"
+    },
+    {
+      "name": "numpy",
+      "version": "2.0",
+      "purpose": "Numeric operations"
+    },
+    {
+      "name": "scikit-learn",
+      "version": "1.5",
+      "purpose": "ML pipeline and model"
+    },
+    {
+      "name": "joblib",
+      "version": "1.4",
+      "purpose": "Model serialization"
+    },
+    {
+      "name": "pytest",
+      "version": "8.2",
+      "purpose": "Testing"
+    }
+  ],
+  "best_practices": [
+    "Use a pyproject.toml for all configuration – no setup.py",
+    "Lock dependencies with `uv lock` for reproducibility",
+    "Prefer functional composition over classes for simple scripts",
+    "Keep I/O separate from pure data transformations",
+    "Write type‑annotated functions and let mypy catch mistakes",
+    "Store data and models outside the source tree (data/, models/)",
+    "Add a pytest test for the preprocessing pipeline"
+  ],
+  "intro_transcript": "Hey everyone, welcome back to the channel! Today we’re going to build a tiny but fully functional AI model from scratch – a binary sentiment classifier that can tell you whether a short sentence sounds positive or negative. What makes this tutorial special is that we’ll use the brand‑new UV package manager to set up a reproducible environment, and we’ll stick to modern Python 3.12 practices: a pyproject.toml, pathlib for file paths, and type hints everywhere. No classes, no fancy charts – just pure functional code that you can read, understand, and extend. By the end of this video you’ll have a ready‑to‑run repository that can train the model with a single command and make predictions from the command line. It’s perfect for beginners who want a quick win and a solid foundation for future ML projects. Let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Create the project folder and initialise with UV",
+      "goal": "Set up a fresh repo, initialise a pyproject.toml, and generate a lockfile.",
+      "bullets": [
+        "Open a terminal and `mkdir uv_text_classifier && cd uv_text_classifier`",
+        "Run `uv init` – choose a name and version",
+        "Accept the default build system (hatchling) and let UV create pyproject.toml",
+        "Add the src/ directory and an empty __init__.py",
+        "Commit the initial files"
+      ],
+      "speaker_notes": "Alright, first things first – we need a clean directory for our project. Open your terminal, type `mkdir uv_text_classifier && cd uv_text_classifier`. This creates a folder and moves you inside it. Now we’ll let UV do the heavy lifting. Run `uv init`. UV will ask you for a project name – just hit enter to accept the folder name, and for the version you can keep the default 0.1.0. When it asks about the build backend, choose the default `hatchling`. UV now writes a minimal pyproject.toml for us. Next, we create a src folder – this is the modern layout that keeps our import paths tidy. Inside src we add an empty `__init__.py` so Python treats it as a package. Finally, we initialise a git repo and make our first commit. This step gives us a reproducible starting point and a lockfile we’ll use later to freeze exact dependency versions. If you run `uv lock` now you’ll see a `uv.lock` file appear – that’s the snapshot of the environment we’ll share with anyone who clones the repo.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "src/__init__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Add core dependencies with UV",
+      "goal": "Install pandas, numpy, scikit‑learn, joblib, and pytest; lock versions.",
+      "bullets": [
+        "Edit pyproject.toml to list required packages",
+        "Run `uv add pandas numpy scikit-learn joblib`",
+        "Add pytest as a dev dependency with `uv add -d pytest`",
+        "Regenerate the lockfile",
+        "Verify the virtual environment works"
+      ],
+      "speaker_notes": "Now that we have a project skeleton, let’s bring in the libraries we actually need. Open `pyproject.toml` and locate the `[project]` table. Under `dependencies` add the following lines: `pandas = \"^2.2\"`, `numpy = \"^2.0\"`, `scikit-learn = \"^1.5\"`, `joblib = \"^1.4\"`. Save the file. UV makes adding packages a breeze – just run `uv add pandas numpy scikit-learn joblib`. UV will resolve compatible versions, download wheels, and update the lockfile automatically. For testing we’ll need pytest, but we don’t want it in production, so we add it as a dev dependency: `uv add -d pytest`. After the installs finish, run `uv lock` to make sure the lockfile is up‑to‑date. Finally, spin up a shell with `uv run -- python -c \"import pandas, sklearn; print('All good')\"` – if you see ‘All good’ you’re ready to code. This step ensures every collaborator will get the exact same library versions with a single `uv sync` later.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Add a tiny CSV dataset",
+      "goal": "Create `data/sample.csv` with a few labeled sentences.",
+      "bullets": [
+        "Create a `data` folder at the repo root",
+        "Add `sample.csv` with columns `text` and `label`",
+        "Populate with 6 short examples (3 positive, 3 negative)",
+        "Commit the data file"
+      ],
+      "speaker_notes": "Our model needs something to learn from, so we’ll create a minimal CSV file. At the root of the repo, make a folder called `data`. Inside it, create a file named `sample.csv`. The CSV will have two columns: `text` for the raw sentence and `label` for the sentiment – 1 for positive, 0 for negative. Paste the following rows:\n\n```\ntext,label\nI love this product,1\nThis is terrible,0\nAbsolutely fantastic experience,1\nI hate the taste,0\nGreat value for money,1\nWorst purchase ever,0\n```\n\nThat’s all we need for a proof‑of‑concept. Commit the file so it’s tracked. In a real project you’d have thousands of rows, but for a tutorial this tiny set keeps training instant.",
+      "code": null,
+      "files_touched": [
+        "data/sample.csv"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Write utility functions for loading data",
+      "goal": "Create `src/utils.py` with typed helpers to read the CSV and split data.",
+      "bullets": [
+        "Import pathlib, pandas, and typing",
+        "Define `load_data(path: Path) -> pd.DataFrame`",
+        "Define `train_test_split(df: pd.DataFrame, test_ratio: float = 0.2) -> tuple[pd.DataFrame, pd.DataFrame]`",
+        "Add docstrings and type hints",
+        "Export functions via __all__"
+      ],
+      "speaker_notes": "Time to start coding. Open a new file at `src/utils.py`. We’ll keep everything functional, so no classes. First, import the tools we need: `from pathlib import Path`, `import pandas as pd`, and `from typing import Tuple`. Then write a `load_data` function that accepts a `Path` object, reads the CSV with `pd.read_csv`, and returns the DataFrame. Adding a docstring helps future readers. Next, a tiny `train_test_split` – we’ll use pandas’ `sample` method to shuffle and split without pulling in scikit‑learn’s splitter. The function returns a tuple of train and test DataFrames. Finally, expose the two functions via `__all__ = [\"load_data\", \"train_test_split\"]`. This file will be imported by both the training and inference scripts, keeping our code DRY.",
+      "code": {
+        "language": "python",
+        "file_path": "src/utils.py",
+        "code": "from pathlib import Path\nimport pandas as pd\nfrom typing import Tuple\n\n__all__ = [\"load_data\", \"train_test_split\"]\n\ndef load_data(csv_path: Path) -> pd.DataFrame:\n    \"\"\"Read the CSV located at *csv_path* and return a pandas DataFrame.\n\n    Parameters\n    ----------\n    csv_path: Path\n        Path to the CSV file containing ``text`` and ``label`` columns.\n    \"\"\"\n    return pd.read_csv(csv_path)\n\ndef train_test_split(df: pd.DataFrame, test_ratio: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame]:\n    \"\"\"Shuffle *df* and split into train and test sets.\n\n    Returns\n    -------\n    train_df, test_df: Tuple[pd.DataFrame, pd.DataFrame]\n    \"\"\"\n    shuffled = df.sample(frac=1, random_state=42).reset_index(drop=True)\n    test_size = int(len(df) * test_ratio)\n    test_df = shuffled.iloc[:test_size]\n    train_df = shuffled.iloc[test_size:]\n    return train_df, test_df\n",
+        "explanation": "Utility functions keep I/O separate from model logic. Using pathlib makes the code OS‑independent, and type hints guide both readers and static analysers.",
+        "expected_output": "",
+        "best_practice_notes": "Avoid hard‑coded strings; let the caller decide the file location. Returning a tuple rather than a dict keeps the signature simple."
+      },
+      "files_touched": [
+        "src/utils.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Build a preprocessing pipeline",
+      "goal": "Create a scikit‑learn pipeline that vectorises text with TfidfVectorizer.",
+      "bullets": [
+        "Import TfidfVectorizer and Pipeline from sklearn",
+        "Define `make_pipeline() -> Pipeline` returning a fitted pipeline object",
+        "Use `TfidfVectorizer(stop_words=\"english\")` as the sole transformer",
+        "No need for a custom estimator yet"
+      ],
+      "speaker_notes": "Now we need to turn raw sentences into numbers the model can understand. Scikit‑learn’s `Pipeline` makes this trivial. Open `src/utils.py` again and add a new function called `make_pipeline`. Import `Pipeline` and `TfidfVectorizer`. The pipeline will consist of a single step named \"tfidf\" that applies the vectoriser with English stop‑words removed. Because we’re only building a transformer here, we don’t fit a classifier yet – the training script will attach the estimator later. Returning the pipeline object lets us reuse it for both training and inference, guaranteeing identical preprocessing.",
+      "code": {
+        "language": "python",
+        "file_path": "src/utils.py",
+        "code": "from sklearn.feature_extraction.text import TfidfVectorizer\nfrom sklearn.pipeline import Pipeline\n\n__all__ = [\"load_data\", \"train_test_split\", \"make_pipeline\"]\n\ndef make_pipeline() -> Pipeline:\n    \"\"\"Create a scikit‑learn Pipeline that converts raw text to TF‑IDF features.\n\n    Returns\n    -------\n    Pipeline\n        A pipeline with a single ``TfidfVectorizer`` step.\n    \"\"\"\n    return Pipeline([\n        (\"tfidf\", TfidfVectorizer(stop_words=\"english\"))\n    ])\n",
+        "explanation": "Separating the preprocessing pipeline lets us serialize it together with the model later, ensuring reproducibility.",
+        "expected_output": "",
+        "best_practice_notes": "Keep the pipeline stateless – all randomness is controlled by the vectoriser’s internal hashing, which is deterministic with a fixed random_state if needed."
+      },
+      "files_touched": [
+        "src/utils.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Write the training script",
+      "goal": "Implement `src/train.py` that loads data, builds a pipeline, trains LogisticRegression, and saves the model.",
+      "bullets": [
+        "Import pathlib, joblib, and needed sklearn classes",
+        "Load CSV via utils.load_data",
+        "Split with utils.train_test_split",
+        "Create pipeline and append LogisticRegression (solver='liblinear')",
+        "Fit on training data, evaluate accuracy on test set, print it",
+        "Save the full pipeline+model to `models/sentiment.joblib`"
+      ],
+      "speaker_notes": "This is the heart of the tutorial – the script that actually trains our sentiment classifier. Open a new file at `src/train.py`. First, import `Path` from pathlib, `joblib` for persistence, and the functions we just wrote in utils. From scikit‑learn we need `LogisticRegression` and `Pipeline`. The script will be executable as a module, so we wrap everything in a `main()` function and call it under the usual `if __name__ == \"__main__\":` guard.\n\nStep by step: we locate the CSV with `Path(__file__).parents[1] / \"data\" / \"sample.csv\"`. Load it, split into train and test, then call `make_pipeline()` to get the TF‑IDF transformer. We extend the pipeline by adding a second step called \"clf\" that holds a `LogisticRegression` with `solver='liblinear'` – perfect for small datasets. Fit the pipeline on the training text and labels. After training, we compute a quick accuracy on the test set and print it – you should see something like 0.83 or higher with our tiny data.\n\nFinally, we need to persist the whole pipeline so inference can reuse the exact same preprocessing. We create a `models` directory if it doesn’t exist and dump the pipeline with `joblib.dump(pipeline, model_path)`. Running `uv run -m src.train` will train and save the model in seconds. This step demonstrates the full data‑model‑persistence loop without any class boilerplate.",
+      "code": {
+        "language": "python",
+        "file_path": "src/train.py",
+        "code": "from pathlib import Path\nimport joblib\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\n\nfrom .utils import load_data, train_test_split, make_pipeline\n\n\ndef main() -> None:\n    # 1️⃣ Locate and load the CSV\n    data_path = Path(__file__).parents[1] / \"data\" / \"sample.csv\"\n    df = load_data(data_path)\n\n    # 2️⃣ Split into train / test\n    train_df, test_df = train_test_split(df, test_ratio=0.33)\n\n    # 3️⃣ Build preprocessing + model pipeline\n    pipeline: Pipeline = make_pipeline()\n    pipeline.steps.append((\"clf\", LogisticRegression(solver=\"liblinear\", random_state=42)))\n\n    # 4️⃣ Fit on training data\n    pipeline.fit(train_df[\"text\"], train_df[\"label\"])\n\n    # 5️⃣ Quick evaluation\n    preds = pipeline.predict(test_df[\"text\"])\n    acc = accuracy_score(test_df[\"label\"], preds)\n    print(f\"Test accuracy: {acc:.2f}\")\n\n    # 6️⃣ Persist the full pipeline\n    model_dir = Path(__file__).parents[1] / \"models\"\n    model_dir.mkdir(exist_ok=True)\n    model_path = model_dir / \"sentiment.joblib\"\n    joblib.dump(pipeline, model_path)\n    print(f\"Model saved to {model_path}\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "explanation": "The script follows a clear functional flow: load → split → build pipeline → train → evaluate → save. Using `Path(__file__)` makes the script portable regardless of where the repo is cloned.",
+        "expected_output": "Test accuracy: 0.67\\nModel saved to /path/to/repo/models/sentiment.joblib",
+        "best_practice_notes": "Appending the classifier step keeps preprocessing reusable. Persist the whole pipeline, not just the model, to avoid mismatched feature extraction during inference."
+      },
+      "files_touched": [
+        "src/train.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 7,
+      "title": "Create the inference CLI",
+      "goal": "Implement `src/predict.py` that loads the saved pipeline and prints the predicted label for a given sentence.",
+      "bullets": [
+        "Parse a single positional argument with argparse",
+        "Load the joblib model from `models/sentiment.joblib`",
+        "Call `pipeline.predict([text])` and map 1→Positive, 0→Negative",
+        "Print a friendly message"
+      ],
+      "speaker_notes": "With a trained model on disk we can now build a tiny command‑line interface that anyone can use. Open `src/predict.py`. We’ll use the standard library’s `argparse` to accept a single string argument – the sentence you want to classify. First, locate the model file just like we did in the training script: `Path(__file__).parents[1] / \"models\" / \"sentiment.joblib\"`. Load it with `joblib.load`. The loaded object is the full pipeline, so we can call `predict` directly on the raw text. The result is a NumPy array with a single integer; we translate 1 to “Positive” and 0 to “Negative” for readability, then print the outcome. Because the script is a module, you can run it with `uv run -m src.predict \"I love this!\"`. This demonstrates the full production loop: data → model → inference, all without any class definitions.",
+      "code": {
+        "language": "python",
+        "file_path": "src/predict.py",
+        "code": "import argparse\nfrom pathlib import Path\nimport joblib\n\n\ndef main() -> None:\n    parser = argparse.ArgumentParser(description=\"Predict sentiment of a short sentence.\")\n    parser.add_argument(\"sentence\", type=str, help=\"The sentence to classify\")\n    args = parser.parse_args()\n\n    model_path = Path(__file__).parents[1] / \"models\" / \"sentiment.joblib\"\n    pipeline = joblib.load(model_path)\n\n    pred = pipeline.predict([args.sentence])[0]\n    sentiment = \"Positive\" if pred == 1 else \"Negative\"\n    print(f\"Input: {args.sentence}\\nPredicted sentiment: {sentiment}\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "explanation": "A tiny CLI that loads the persisted pipeline and runs a single prediction. Using argparse keeps the interface extensible for future flags.",
+        "expected_output": "Input: I love this!\\nPredicted sentiment: Positive",
+        "best_practice_notes": "Never hard‑code the model path; compute it relative to the source file so the script works from any working directory."
+      },
+      "files_touched": [
+        "src/predict.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Add a pytest for the preprocessing pipeline",
+      "goal": "Create `tests/test_pipeline.py` that checks TF‑IDF output shape and that the pipeline can fit without errors.",
+      "bullets": [
+        "Import make_pipeline from utils",
+        "Create a tiny list of two sentences",
+        "Fit the pipeline on dummy labels",
+        "Assert the transformed matrix has shape (2, n_features)",
+        "Run `uv run pytest -q` to see the test pass"
+      ],
+      "speaker_notes": "Testing is a habit we want to instil early. Let’s add a simple unit test that verifies our preprocessing pipeline works as expected. Create a new folder called `tests` at the repo root and add `test_pipeline.py`. Inside, import `make_pipeline` from `src.utils`. We’ll define a tiny dataset – two sentences and dummy labels `[0, 1]`. Build the pipeline, call `fit` on the texts, then transform them and check that the resulting sparse matrix has two rows – one per input – and a non‑zero number of columns. Finally, run the test with `uv run pytest -q`. You should see a single passing test. This gives confidence that future changes to the pipeline won’t break the basic contract.",
+      "code": {
+        "language": "python",
+        "file_path": "tests/test_pipeline.py",
+        "code": "from src.utils import make_pipeline\n\ndef test_pipeline_shape() -> None:\n    texts = [\"I love this\", \"This is bad\"]\n    labels = [1, 0]\n    pipeline = make_pipeline()\n    # Fit the transformer part only; classifier not attached yet\n    pipeline.fit(texts, labels)\n    transformed = pipeline.transform(texts)\n    # transformed is a scipy sparse matrix\n    assert transformed.shape[0] == len(texts)\n    assert transformed.shape[1] > 0\n",
+        "explanation": "The test ensures the TF‑IDF step produces a matrix with the correct number of rows and at least one feature column.",
+        "expected_output": "",
+        "best_practice_notes": "Keep tests fast and deterministic – using a tiny dataset guarantees instant execution."
+      },
+      "files_touched": [
+        "tests/test_pipeline.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 9,
+      "title": "Run the full workflow",
+      "goal": "Train the model, run a prediction, and verify the test passes.",
+      "bullets": [
+        "Execute `uv sync && uv run -m src.train`",
+        "Observe printed test accuracy and model path",
+        "Run `uv run -m src.predict \"I hate this\"`",
+        "Run `uv run pytest -q` and confirm the test passes",
+        "Commit the trained model file (optional) and all code"
+      ],
+      "speaker_notes": "We’ve written every piece – now let’s see the whole pipeline in action. First, make sure the lockfile is applied: `uv sync` creates a reproducible virtual environment. Then train the model with `uv run -m src.train`. You should see a test accuracy line and a confirmation that the model was saved under `models/sentiment.joblib`. Next, try the inference script: `uv run -m src.predict \"I hate this\"`. The output should read “Negative”. Finally, run the test suite: `uv run pytest -q`. You’ll get a single dot indicating the pipeline test passed. At this point the project is functional, reproducible, and tested – exactly what a beginner should aim for. If you like, add the `models` directory to the repo (or ignore it with .gitignore if you prefer to keep only source code). That wraps up the tutorial!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "Congratulations! You just built a complete, production‑ready text classifier using only functional Python, modern packaging with UV, and a handful of well‑known libraries. We started from an empty folder, set up a reproducible environment, wrote clean utility functions, built a scikit‑learn pipeline, trained a LogisticRegression model, persisted it, and wrapped everything in a tiny CLI. On top of that we added a pytest that guarantees our preprocessing stays stable. All of this was done without a single class or any charting code – just pure, readable functions. In future videos we’ll explore how to expand this project: adding more sophisticated models, swapping TF‑IDF for embeddings, or turning the CLI into a FastAPI microservice. Thanks for watching, hit the like button if you found this useful, and subscribe for more hands‑on Python tutorials. Happy coding!",
+  "final_project_code": "{'language': 'python', 'file_path': 'src/', 'code': '# Complete project structure (concatenated for reference)\\n# src/__init__.py – empty\\n\\n# src/utils.py\\nfrom pathlib import Path\\nimport pandas as pd\\nfrom typing import Tuple\\nfrom sklearn.feature_extraction.text import TfidfVectorizer\\nfrom sklearn.pipeline import Pipeline\\n\\n__all__ = [\"load_data\", \"train_test_split\", \"make_pipeline\"]\\n\\ndef load_data(csv_path: Path) -> pd.DataFrame:\\n    \"\"\"Read CSV and return DataFrame.\"\"\"\\n    return pd.read_csv(csv_path)\\n\\ndef train_test_split(df: pd.DataFrame, test_ratio: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame]:\\n    shuffled = df.sample(frac=1, random_state=42).reset_index(drop=True)\\n    test_size = int(len(df) * test_ratio)\\n    test_df = shuffled.iloc[:test_size]\\n    train_df = shuffled.iloc[test_size:]\\n    return train_df, test_df\\n\\ndef make_pipeline() -> Pipeline:\\n    \"\"\"TF‑IDF preprocessing pipeline.\"\"\"\\n    return Pipeline([\\n        (\"tfidf\", TfidfVectorizer(stop_words=\"english\"))\\n    ])\\n\\n# src/train.py\\nfrom pathlib import Path\\nimport joblib\\nfrom sklearn.linear_model import LogisticRegression\\nfrom sklearn.pipeline import Pipeline\\nfrom sklearn.metrics import accuracy_score\\n\\nfrom .utils import load_data, train_test_split, make_pipeline\\n\\ndef main() -> None:\\n    data_path = Path(__file__).parents[1] / \"data\" / \"sample.csv\"\\n    df = load_data(data_path)\\n    train_df, test_df = train_test_split(df, test_ratio=0.33)\\n    pipeline: Pipeline = make_pipeline()\\n    pipeline.steps.append((\"clf\", LogisticRegression(solver=\"liblinear\", random_state=42)))\\n    pipeline.fit(train_df[\"text\"], train_df[\"label\"])\\n    preds = pipeline.predict(test_df[\"text\"])\\n    acc = accuracy_score(test_df[\"label\"], preds)\\n    print(f\"Test accuracy: {acc:.2f}\")\\n    model_dir = Path(__file__).parents[1] / \"models\"\\n    model_dir.mkdir(exist_ok=True)\\n    model_path = model_dir / \"sentiment.joblib\"\\n    joblib.dump(pipeline, model_path)\\n    print(f\"Model saved to {model_path}\")\\n\\nif __name__ == \"__main__\":\\n    main()\\n\\n# src/predict.py\\nimport argparse\\nfrom pathlib import Path\\nimport joblib\\n\\ndef main() -> None:\\n    parser = argparse.ArgumentParser(description=\"Predict sentiment of a short sentence.\")\\n    parser.add_argument(\"sentence\", type=str, help=\"The sentence to classify\")\\n    args = parser.parse_args()\\n    model_path = Path(__file__).parents[1] / \"models\" / \"sentiment.joblib\"\\n    pipeline = joblib.load(model_path)\\n    pred = pipeline.predict([args.sentence])[0]\\n    sentiment = \"Positive\" if pred == 1 else \"Negative\"\\n    print(f\"Input: {args.sentence}\\\\nPredicted sentiment: {sentiment}\")\\n\\nif __name__ == \"__main__\":\\n    main()\\n\\n# tests/test_pipeline.py\\nfrom src.utils import make_pipeline\\n\\ndef test_pipeline_shape() -> None:\\n    texts = [\"I love this\", \"This is bad\"]\\n    labels = [1, 0]\\n    pipeline = make_pipeline()\\n    pipeline.fit(texts, labels)\\n    transformed = pipeline.transform(texts)\\n    assert transformed.shape[0] == len(texts)\\n    assert transformed.shape[1] > 0\\n', 'explanation': 'All source files are shown together for quick reference. Each file follows the functional style, uses pathlib for paths, and includes type hints. The training script persists the full pipeline, enabling the inference script to reuse the exact same preprocessing steps.', 'expected_output': 'Running `uv run -m src.train` prints test accuracy and model path. Running `uv run -m src.predict \"I love this\"` prints Positive. Tests pass with a single dot.'}",
+  "how_to_run": "```bash\n# 1️⃣ Install UV (if not already installed)\ncurl -LsSf https://astral.sh/uv/install.sh | sh\n\n# 2️⃣ Clone the repo and cd into it\ngit clone <repo-url> uv_text_classifier && cd uv_text_classifier\n\n# 3️⃣ Sync the locked environment\nuv sync\n\n# 4️⃣ Train the model\nuv run -m src.train\n\n# 5️⃣ Make a prediction\nuv run -m src.predict \"I love this!\"\n\n# 6️⃣ Run the test suite\nuv run pytest -q\n```",
+  "challenges": [
+    {
+      "title": "Add a stop‑word language option",
+      "description": "Modify `make_pipeline` to accept a `language: str` argument and pass it to `TfidfVectorizer(stop_words=language)`. Update the training script to use \"english\" by default but allow a command‑line flag to change it.",
+      "build_process": "Update `src/train.py` to parse an optional `--stop-words` flag with argparse, pass the value to `make_pipeline(stop_words)`, then run `uv run -m src.train --stop-words none` to disable stop‑words.",
+      "solution_code": "{'language': 'python', 'file_path': 'src/utils.py', 'code': 'def make_pipeline(language: str = \"english\") -> Pipeline:\\n    \"\"\"Create a TF‑IDF pipeline with configurable stop‑word language.\\n\\n    Parameters\\n    ----------\\n    language: str\\n        Language for stop‑words; pass \"english\", \"french\", etc., or None.\\n    \"\"\"\\n    return Pipeline([\\n        (\"tfidf\", TfidfVectorizer(stop_words=language))\\n    ])\\n', 'explanation': 'The function now takes an optional language argument, making the pipeline more flexible.'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    },
+    {
+      "title": "Swap LogisticRegression for a LinearSVC",
+      "description": "Replace the classifier with `LinearSVC` and observe any change in accuracy.",
+      "build_process": "Re‑run `uv run -m src.train` and note the new test accuracy. No other changes required.",
+      "solution_code": "{'language': 'python', 'file_path': 'src/train.py', 'code': 'from sklearn.svm import LinearSVC\\n# ... inside main():\\n    pipeline.steps.append((\"clf\", LinearSVC()))\\n', 'explanation': 'LinearSVC often works better on high‑dimensional sparse data like TF‑IDF.'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    }
+  ]
+}

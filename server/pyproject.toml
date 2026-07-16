@@ -1,0 +1,14 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.139.0",
+    "matplotlib>=3.11.0",
+    "ollama>=0.6.2",
+    "pydantic>=2.13.4",
+    "python-pptx>=1.0.2",
+    "uvicorn[standard]>=0.51.0",
+]

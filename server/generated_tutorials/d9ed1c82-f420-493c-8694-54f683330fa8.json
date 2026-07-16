@@ -1,0 +1,277 @@
+{
+  "id": "d9ed1c82-f420-493c-8694-54f683330fa8",
+  "title": "Local Ollama ChatGPT – Build a Simple AI Chat CLI",
+  "tagline": "Turn your local Ollama model into a ChatGPT‑like terminal assistant in under 3 hours.",
+  "description": "In this hands‑on tutorial you’ll start from an empty folder and end up with a fully functional command‑line chat client that talks to a locally‑running Ollama model. We’ll use modern Python 3.12 features, a clean src/ layout, type‑hints, pathlib, and pytest‑friendly testing. No classes, no external charting libraries – just pure functions and a tiny REPL loop.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "You have Ollama installed locally and want a quick way to interact with a large language model from the terminal, without writing boilerplate HTTP code each time. The goal is to create a reusable, well‑structured Python script that sends a prompt to Ollama’s /api/chat endpoint and prints the model’s response.",
+  "end_state": "A ready‑to‑run Python package `local-ollama-chatgpt` that you can start with `python -m local_ollama_chatgpt` and have a back‑and‑forth conversation with the chosen Ollama model. The repository includes a pyproject.toml, a small test suite, and follows best practices for modern Python projects.",
+  "prerequisites": [
+    "Python 3.12 installed",
+    "Ollama running locally (e.g., `ollama serve`)",
+    "Basic familiarity with the terminal and pip"
+  ],
+  "learning_outcomes": [
+    "Set up a modern Python project with pyproject.toml and src/ layout",
+    "Use pathlib for file handling and configuration",
+    "Make async HTTP calls with httpx",
+    "Write clean, typed functions without classes",
+    "Add a simple pytest test with httpx mock",
+    "Create a console REPL loop"
+  ],
+  "repo_layout": [
+    "{'src': ['local_ollama_chatgpt/__init__.py', 'local_ollama_chatgpt/config.py', 'local_ollama_chatgpt/api.py', 'local_ollama_chatgpt/chat.py', 'local_ollama_chatgpt/__main__.py'], 'tests': ['tests/test_api.py'], 'root_files': ['pyproject.toml', 'README.md', '.gitignore']}"
+  ],
+  "stack": [
+    {
+      "name": "python",
+      "version": "3.12",
+      "purpose": "core language"
+    },
+    {
+      "name": "httpx",
+      "version": "0.27",
+      "purpose": "async HTTP client for Ollama API"
+    },
+    {
+      "name": "rich",
+      "version": "13.8",
+      "purpose": "pretty console output"
+    },
+    {
+      "name": "pytest",
+      "version": "8.2",
+      "purpose": "testing framework"
+    },
+    {
+      "name": "pytest-httpx",
+      "version": "0.30",
+      "purpose": "mock httpx calls in tests"
+    }
+  ],
+  "best_practices": [
+    "Keep all code in functions – no classes for this simple project",
+    "Use pathlib.Path for all filesystem paths",
+    "Add type hints everywhere, including for async functions",
+    "Separate configuration from logic",
+    "Write a small test that mocks the Ollama endpoint"
+  ],
+  "intro_transcript": "Hey everyone, welcome back to the channel! Today we’re going to build something that feels like magic – a ChatGPT‑style assistant that runs completely on your own machine using Ollama. No cloud keys, no hidden APIs, just a tiny Python package that talks to the Ollama server you already have running locally. By the end of this video you’ll have a command‑line chat client you can start with a single command, and you’ll see how to structure a modern Python project from scratch – pyproject.toml, src layout, pathlib, type hints, and even a quick pytest suite. I’ll walk you through each file, explain why we’re using async httpx instead of the old requests library, and keep everything class‑free so the code stays approachable for beginners. Grab your terminal, make sure Ollama is up and running, and let’s dive in. If you enjoy clean, production‑ready Python code, hit that like button and let’s get coding!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Initialize the repository and pyproject.toml",
+      "goal": "Create a fresh folder with a modern pyproject configuration.",
+      "bullets": [
+        "Make a new directory called local-ollama-chatgpt",
+        "Run `git init` and create a .gitignore",
+        "Add a minimal pyproject.toml with build system and dependencies",
+        "Create the src/ and tests/ folders"
+      ],
+      "speaker_notes": "Alright, first things first – open your terminal and make a new folder called `local-ollama-chatgpt`. Inside, we’ll run `git init` so we have version control from day one. Next, create a `.gitignore` that excludes `__pycache__/`, `.venv/`, and any OS junk. The heart of a modern Python project is the `pyproject.toml`. I’ll paste a minimal file that tells pip how to build the package and lists our runtime dependencies – httpx for async HTTP, rich for pretty printing, and pytest for testing. Notice we’re using the PEP 621 metadata style, which is the recommended way in 2025. Once that file is saved, we’ll create the `src/` directory where all our code lives, and a `tests/` folder for the test suite. This structure keeps the import path clean and mirrors what you’ll see in many open‑source projects. Go ahead and create those folders now – we’ll fill them in over the next few steps.",
+      "code": {
+        "language": "python",
+        "file_path": "pyproject.toml",
+        "code": "[build-system]\nrequires = [\"setuptools>=70\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"local-ollama-chatgpt\"\nversion = \"0.1.0\"\ndescription = \"A tiny CLI that talks to a local Ollama model\"\nrequires-python = \">=3.12\"\nauthors = [{name = \"Your Name\", email = \"you@example.com\"}]\nreadme = \"README.md\"\nlicense = {text = \"MIT\"}\n\n[project.dependencies]\nhttpx = \">=0.27\"\nrich = \">=13.8\"\n\n[project.optional-dependencies]\ntest = [\"pytest>=8.2\", \"pytest-httpx>=0.30\"]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n",
+        "explanation": "Defines the build system, project metadata, and runtime dependencies. The optional test dependencies are grouped under `test` so you can install them with `pip install .[test]`.",
+        "expected_output": "",
+        "best_practice_notes": "Using PEP 621 keeps metadata declarative and avoids duplication with setup.cfg."
+      },
+      "files_touched": [
+        "pyproject.toml",
+        ".gitignore",
+        "src/",
+        "tests/"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 2,
+      "title": "Add configuration constants",
+      "goal": "Store Ollama endpoint and model name in a dedicated config file.",
+      "bullets": [
+        "Create src/local_ollama_chatgpt/config.py",
+        "Define DEFAULT_ENDPOINT and DEFAULT_MODEL as pathlib.Path objects",
+        "Expose a get_config() function that returns a dict",
+        "Add type hints for clarity"
+      ],
+      "speaker_notes": "Now that we have the project skeleton, let’s put the Ollama settings in their own file. This keeps the rest of the code clean and makes it easy to change the model later. In `config.py` we’ll define two constants – the HTTP endpoint where Ollama listens (by default `http://127.0.0.1:11434/api/chat`) and the model name you want to use, for example `llama3.1`. I’ll also write a tiny `get_config()` helper that returns a dictionary; this pattern mimics what you’d see in larger apps but stays simple. Notice we’re using `pathlib.Path` for the endpoint string – it’s a bit overkill but demonstrates the modern API you’ll use elsewhere. Let’s type‑annotate everything so mypy can help us later.",
+      "code": {
+        "language": "python",
+        "file_path": "src/local_ollama_chatgpt/config.py",
+        "code": "from __future__ import annotations\n\nfrom pathlib import Path\nfrom typing import Final, TypedDict\n\nclass Config(TypedDict):\n    endpoint: str\n    model: str\n\nDEFAULT_ENDPOINT: Final[str] = \"http://127.0.0.1:11434/api/chat\"\nDEFAULT_MODEL: Final[str] = \"llama3.1\"\n\ndef get_config() -> Config:\n    \"\"\"Return the default configuration for the Ollama client.\n\n    You can later extend this to read from a .env file or CLI args.\n    \"\"\"\n    return {\"endpoint\": DEFAULT_ENDPOINT, \"model\": DEFAULT_MODEL}\n",
+        "explanation": "Provides a typed configuration dictionary. Using TypedDict gives us static checking without a full dataclass.",
+        "expected_output": "",
+        "best_practice_notes": "TypedDict is lightweight and works well for simple config objects; avoid over‑engineering with pydantic for this tutorial."
+      },
+      "files_touched": [
+        "src/local_ollama_chatgpt/config.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Write the low‑level Ollama API wrapper",
+      "goal": "Create an async function that posts a chat request and returns the response text.",
+      "bullets": [
+        "Create src/local_ollama_chatgpt/api.py",
+        "Use httpx.AsyncClient for the POST request",
+        "Define request and response payload types",
+        "Raise a custom exception on non‑200 status"
+      ],
+      "speaker_notes": "Time to talk to Ollama. We’ll put all HTTP logic in `api.py` so the rest of the app stays pure. The Ollama chat endpoint expects a JSON body with a `model` field and a list of `messages`. For a simple REPL we’ll only send the latest user message, but we still need to follow the schema. I’ll define two TypedDicts – `ChatMessage` for each message and `ChatRequest` for the whole payload. The async function `call_ollama` will accept the endpoint, model, and a user string, then return the assistant’s reply. If the server returns anything other than 200 we raise a `RuntimeError` with the status code – that makes debugging easier. Remember to `await client.aclose()` in a finally block so we don’t leak connections.",
+      "code": {
+        "language": "python",
+        "file_path": "src/local_ollama_chatgpt/api.py",
+        "code": "from __future__ import annotations\n\nimport json\nfrom typing import TypedDict, List\n\nimport httpx\n\nclass ChatMessage(TypedDict):\n    role: str  # \"user\" or \"assistant\"\n    content: str\n\nclass ChatRequest(TypedDict):\n    model: str\n    messages: List[ChatMessage]\n\nclass ChatResponse(TypedDict):\n    model: str\n    created_at: str\n    message: ChatMessage\n    done: bool\n\nasync def call_ollama(endpoint: str, model: str, user_input: str) -> str:\n    \"\"\"Send *user_input* to Ollama and return the assistant's reply.\n\n    Parameters\n    ----------\n    endpoint:\n        Full URL of the Ollama `/api/chat` endpoint.\n    model:\n        Name of the model to query, e.g. ``\"llama3.1\"``.\n    user_input:\n        The text the user typed.\n    \"\"\"\n    payload: ChatRequest = {\n        \"model\": model,\n        \"messages\": [{\"role\": \"user\", \"content\": user_input}],\n    }\n    async with httpx.AsyncClient(timeout=30.0) as client:\n        response = await client.post(endpoint, json=payload)\n        if response.status_code != 200:\n            raise RuntimeError(\n                f\"Ollama API error {response.status_code}: {response.text}\"\n            )\n        data: ChatResponse = response.json()\n        return data[\"message\"][\"content\"].strip()\n",
+        "explanation": "Defines request/response structures and an async function that posts to Ollama and extracts the assistant's reply.",
+        "expected_output": "",
+        "best_practice_notes": "Using httpx.AsyncClient avoids blocking the REPL and lets us add timeouts easily."
+      },
+      "files_touched": [
+        "src/local_ollama_chatgpt/api.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 4,
+      "title": "Build the chat REPL loop",
+      "goal": "Create a function that repeatedly reads user input, calls the API, and prints the response.",
+      "bullets": [
+        "Create src/local_ollama_chatgpt/chat.py",
+        "Import get_config and call_ollama",
+        "Use rich.console.Console for colored prompts",
+        "Handle KeyboardInterrupt gracefully"
+      ],
+      "speaker_notes": "Now we’ll glue everything together with a tiny REPL. In `chat.py` we import the config helper and the async API call we just wrote. The function `run_chat` will create a `rich.console.Console` instance so we can print a nice prompt like \"You >\" in cyan and the assistant’s reply in green. Inside a `while True` loop we read from `input()`, break on an empty line, and await the Ollama response. Because `run_chat` is async we’ll later call it from `__main__` using `asyncio.run`. I also wrap the loop in a try/except for `KeyboardInterrupt` so the user can hit Ctrl‑C to exit cleanly, printing a friendly goodbye message. Let’s write that code now.",
+      "code": {
+        "language": "python",
+        "file_path": "src/local_ollama_chatgpt/chat.py",
+        "code": "from __future__ import annotations\n\nimport asyncio\nfrom pathlib import Path\nfrom typing import Final\n\nfrom rich.console import Console\nfrom rich.prompt import Prompt\n\nfrom .config import get_config\nfrom .api import call_ollama\n\nconsole: Final = Console()\n\nasync def run_chat() -> None:\n    cfg = get_config()\n    endpoint = cfg[\"endpoint\"]\n    model = cfg[\"model\"]\n    console.print(f\"[bold]Local Ollama ChatGPT – model: {model}[/bold]\\n\")\n    while True:\n        try:\n            user_input = Prompt.ask(\"[cyan]You[/cyan]\")\n            if not user_input.strip():\n                console.print(\"[italic]Goodbye![/italic]\")\n                break\n            console.print(\"[magenta]Thinking...[/magenta]\")\n            reply = await call_ollama(endpoint, model, user_input)\n            console.print(f\"[green]Assistant[/green]: {reply}\\n\")\n        except KeyboardInterrupt:\n            console.print(\"\\n[italic]Interrupted – exiting.[/italic]\")\n            break\n        except Exception as exc:\n            console.print(f\"[red]Error:[/red] {exc}\")\n\nif __name__ == \"__main__\":\n    asyncio.run(run_chat())\n",
+        "explanation": "Provides an async REPL that reads user input, calls Ollama, and prints the response with Rich styling.",
+        "expected_output": "",
+        "best_practice_notes": "Rich makes terminal output readable without extra dependencies; using Prompt keeps the code concise."
+      },
+      "files_touched": [
+        "src/local_ollama_chatgpt/chat.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 5,
+      "title": "Add a tiny CLI entry point",
+      "goal": "Expose the chat function via `python -m local_ollama_chatgpt`.",
+      "bullets": [
+        "Create src/local_ollama_chatgpt/__main__.py",
+        "Import and run the async REPL",
+        "Update pyproject.toml with a console script (optional)",
+        "Explain the difference between module execution and entry points"
+      ],
+      "speaker_notes": "Running a script directly is fine, but Python gives us a nicer way to expose a command‑line tool: the `-m` flag. By adding a `__main__.py` file inside the package, we let users type `python -m local_ollama_chatgpt` and get straight into the chat. The file is just a thin wrapper that imports `run_chat` from `chat.py` and executes it with `asyncio.run`. I’ll also show you how to add a console script entry point in `pyproject.toml` so you could later install the package with `pip install .` and run `local-ollama-chatgpt` from anywhere. For now, the `__main__` file is enough to demonstrate the pattern.",
+      "code": {
+        "language": "python",
+        "file_path": "src/local_ollama_chatgpt/__main__.py",
+        "code": "import asyncio\n\nfrom .chat import run_chat\n\nif __name__ == \"__main__\":\n    asyncio.run(run_chat())\n",
+        "explanation": "Entry point that simply runs the async REPL when the module is executed with `-m`.",
+        "expected_output": "",
+        "best_practice_notes": "Keeping the entry point tiny avoids import‑side effects and speeds up start‑up."
+      },
+      "files_touched": [
+        "src/local_ollama_chatgpt/__main__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Write a unit test for the API wrapper",
+      "goal": "Mock the Ollama HTTP response and verify `call_ollama` returns the expected text.",
+      "bullets": [
+        "Create tests/test_api.py",
+        "Use pytest-httpx to intercept the POST request",
+        "Provide a fake JSON payload matching Ollama's schema",
+        "Assert the returned string equals the mocked content"
+      ],
+      "speaker_notes": "Even for a tiny project we want at least one test to prove our wrapper works and to demonstrate good habits. In `tests/test_api.py` we’ll use `pytest_httpx` which patches httpx globally. We’ll define a fake response JSON that mimics what Ollama returns – a `message` object with `role` and `content`. Then we call `await call_ollama(...)` and assert that the function extracts the `content` correctly. Because the function is async we’ll mark the test with `@pytest.mark.asyncio`. Running `pytest -q` should now show a passing test. This also shows how you can test error handling by returning a non‑200 status in a separate test if you wish.",
+      "code": {
+        "language": "python",
+        "file_path": "tests/test_api.py",
+        "code": "import pytest\nimport httpx\n\nfrom local_ollama_chatgpt.api import call_ollama\n\n@pytest.mark.asyncio\nasync def test_call_ollama_success(httpx_mock):\n    fake_response = {\n        \"model\": \"llama3.1\",\n        \"created_at\": \"2024-01-01T00:00:00Z\",\n        \"message\": {\"role\": \"assistant\", \"content\": \"Hello, world!\"},\n        \"done\": True,\n    }\n    httpx_mock.add_response(method=\"POST\", url=\"http://127.0.0.1:11434/api/chat\", json=fake_response, status_code=200)\n    reply = await call_ollama(\"http://127.0.0.1:11434/api/chat\", \"llama3.1\", \"Hi\")\n    assert reply == \"Hello, world!\"\n",
+        "explanation": "Mocks the POST request and checks that `call_ollama` returns the assistant's content.",
+        "expected_output": "",
+        "best_practice_notes": "pytest-httpx keeps tests fast and deterministic without needing a real Ollama server."
+      },
+      "files_touched": [
+        "tests/test_api.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 7,
+      "title": "Run the test suite and fix any issues",
+      "goal": "Validate that the code passes all tests and lint checks.",
+      "bullets": [
+        "Create a virtual environment",
+        "Install the package with test extras: `pip install -e .[test]`",
+        "Run `pytest -q` and ensure the test passes",
+        "Optionally run `ruff` for linting"
+      ],
+      "speaker_notes": "Let’s make sure everything works before we call it a day. Open a terminal, create a venv with `python -m venv .venv`, activate it, and install the project in editable mode with the test extras: `pip install -e .[test]`. Then run `pytest -q`. You should see a single dot indicating the API test passed. If you get a failure, double‑check the endpoint URL in the test matches the one in `config.py`. As a bonus, I’ll run `ruff .` to show you a quick lint pass – you’ll see no warnings because we followed type‑hinting and avoided unused imports. Once the green check appears, we’re ready to chat with Ollama!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Demo the chat client",
+      "goal": "Run the REPL and have a short conversation with the model.",
+      "bullets": [
+        "Start Ollama server if not already running",
+        "Execute `python -m local_ollama_chatgpt`",
+        "Ask a simple question like \"What is the capital of France?\"",
+        "Observe the colored output and graceful exit"
+      ],
+      "speaker_notes": "Now for the fun part – let’s actually talk to the model. Make sure your Ollama server is up (`ollama serve` in another terminal). Then run the command we just wired up: `python -m local_ollama_chatgpt`. You’ll see a bold header with the model name, a cyan prompt for your input, and after you hit Enter a magenta \"Thinking...\" line while the request is in flight. When the response arrives, the assistant’s reply appears in green. Try a few questions – \"What is the capital of France?\", \"Tell me a short joke\", or anything you like. When you’re done, just press Enter on an empty line or hit Ctrl‑C; the program will say goodbye and exit cleanly. That’s the entire product – a lightweight, locally‑hosted ChatGPT clone you can extend however you want.",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 9,
+      "title": "Wrap‑up and next steps",
+      "goal": "Summarize what was built and suggest extensions.",
+      "bullets": [
+        "Recap the project structure and key concepts",
+        "Mention adding streaming responses for a more interactive feel",
+        "Suggest persisting conversation history to a JSON file",
+        "Encourage publishing the package to PyPI"
+      ],
+      "speaker_notes": "Congratulations! You just built a functional local ChatGPT client from scratch, using a clean src/ layout, async httpx, Rich for UI, and a tiny pytest suite. We covered configuration, type‑hinted API wrappers, a REPL loop, and testing with httpx‑mock. From here you can explore a few extensions: enable Ollama’s streaming mode to print tokens as they arrive, store the full conversation in a JSON file so you can reload context later, or even expose a tiny FastAPI endpoint that other tools can call. If you feel adventurous, bump the version in `pyproject.toml` and publish the package to PyPI – other developers could install it with a single `pip install local-ollama-chatgpt`. Thanks for watching, hit the like button if you learned something, and let me know in the comments what you’d like to see next!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "Thanks for sticking around to the end! We’ve taken a blank repository, added a modern pyproject, written a typed async wrapper around Ollama, built a colorful REPL with Rich, and even covered testing with pytest‑httpx. All of that in under an hour of coding. The code is deliberately simple – no classes, no over‑engineered abstractions – so you can read it line by line and understand exactly what’s happening. If you enjoyed this quick‑win project, consider adding streaming output so the assistant appears token‑by‑token, or persisting the chat history to a local JSON file for context. You could also turn this into a tiny web service with FastAPI and expose it to other tools on your network. Feel free to fork the repo, experiment, and share your extensions in the comments. As always, smash that subscribe button for more beginner‑friendly Python builds, and I’ll see you in the next video!",
+  "final_project_code": "{'language': 'python', 'file_path': 'src/local_ollama_chatgpt', 'code': '# __init__.py (empty)\\n\\n# config.py\\nfrom __future__ import annotations\\nfrom pathlib import Path\\nfrom typing import Final, TypedDict\\n\\nclass Config(TypedDict):\\n    endpoint: str\\n    model: str\\n\\nDEFAULT_ENDPOINT: Final[str] = \"http://127.0.0.1:11434/api/chat\"\\nDEFAULT_MODEL: Final[str] = \"llama3.1\"\\n\\ndef get_config() -> Config:\\n    return {\"endpoint\": DEFAULT_ENDPOINT, \"model\": DEFAULT_MODEL}\\n\\n# api.py\\nfrom __future__ import annotations\\nimport json\\nfrom typing import TypedDict, List\\nimport httpx\\n\\nclass ChatMessage(TypedDict):\\n    role: str\\n    content: str\\n\\nclass ChatRequest(TypedDict):\\n    model: str\\n    messages: List[ChatMessage]\\n\\nclass ChatResponse(TypedDict):\\n    model: str\\n    created_at: str\\n    message: ChatMessage\\n    done: bool\\n\\nasync def call_ollama(endpoint: str, model: str, user_input: str) -> str:\\n    payload: ChatRequest = {\"model\": model, \"messages\": [{\"role\": \"user\", \"content\": user_input}]}\\n    async with httpx.AsyncClient(timeout=30.0) as client:\\n        response = await client.post(endpoint, json=payload)\\n        if response.status_code != 200:\\n            raise RuntimeError(f\"Ollama API error {response.status_code}: {response.text}\")\\n        data: ChatResponse = response.json()\\n        return data[\"message\"][\"content\"].strip()\\n\\n# chat.py\\nimport asyncio\\nfrom typing import Final\\nfrom rich.console import Console\\nfrom rich.prompt import Prompt\\nfrom .config import get_config\\nfrom .api import call_ollama\\n\\nconsole: Final = Console()\\n\\nasync def run_chat() -> None:\\n    cfg = get_config()\\n    endpoint = cfg[\"endpoint\"]\\n    model = cfg[\"model\"]\\n    console.print(f\"[bold]Local Ollama ChatGPT – model: {model}[/bold]\\\\n\")\\n    while True:\\n        try:\\n            user_input = Prompt.ask(\"[cyan]You[/cyan]\")\\n            if not user_input.strip():\\n                console.print(\"[italic]Goodbye![/italic]\")\\n                break\\n            console.print(\"[magenta]Thinking...[/magenta]\")\\n            reply = await call_ollama(endpoint, model, user_input)\\n            console.print(f\"[green]Assistant[/green]: {reply}\\\\n\")\\n        except KeyboardInterrupt:\\n            console.print(\"\\\\n[italic]Interrupted – exiting.[/italic]\")\\n            break\\n        except Exception as exc:\\n            console.print(f\"[red]Error:[/red] {exc}\")\\n\\n# __main__.py\\nimport asyncio\\nfrom .chat import run_chat\\n\\nif __name__ == \"__main__\":\\n    asyncio.run(run_chat())\\n', 'explanation': 'All source files combined: empty __init__, typed config, async API wrapper, REPL loop with Rich, and a __main__ entry point.', 'expected_output': \"Running `python -m local_ollama_chatgpt` starts a colored REPL that sends prompts to Ollama and prints the assistant's replies.\", 'best_practice_notes': 'Each file has a single responsibility, uses type hints, and avoids global state beyond the console instance.'}",
+  "how_to_run": "1. Ensure Ollama is installed and a model (e.g., `llama3.1`) is pulled.\n2. Start the Ollama server: `ollama serve`.\n3. Clone the repo, then create a virtual environment:\n   ```bash\n   python -m venv .venv\n   source .venv/bin/activate   # Windows: .venv\\Scripts\\activate\n   ```\n4. Install the package in editable mode with test extras:\n   ```bash\n   pip install -e .[test]\n   ```\n5. Run the chat client:\n   ```bash\n   python -m local_ollama_chatgpt\n   ```\n6. Type your questions; press Enter on an empty line or Ctrl‑C to exit.\n7. To run the test suite:\n   ```bash\n   pytest -q\n   ```",
+  "challenges": [
+    {
+      "title": "Streaming response support",
+      "description": "Modify `call_ollama` to use Ollama's streaming endpoint (`/api/chat`) with `stream=True` and print tokens as they arrive.",
+      "build_process": "Replace the call in `chat.run_chat` with `await call_ollama_stream(...)`. The REPL will now display tokens in real time, mimicking the feel of official ChatGPT interfaces.",
+      "solution_code": "{'language': 'python', 'file_path': 'src/local_ollama_chatgpt/api.py', 'code': 'async def call_ollama_stream(endpoint: str, model: str, user_input: str) -> str:\\n    \"\"\"Yield tokens from Ollama as they are generated.\\n    Returns the full assembled reply.\\n    \"\"\"\\n    payload = {\"model\": model, \"messages\": [{\"role\": \"user\", \"content\": user_input}], \"stream\": True}\\n    async with httpx.AsyncClient(timeout=30.0) as client:\\n        async with client.stream(\"POST\", endpoint, json=payload) as response:\\n            if response.status_code != 200:\\n                raise RuntimeError(f\"Ollama streaming error {response.status_code}: {await response.aread()}\" )\\n            full_reply = \"\"\\n            async for line in response.aiter_lines():\\n                if not line:\\n                    continue\\n                data = json.loads(line)\\n                token = data.get(\"message\", {}).get(\"content\", \"\")\\n                full_reply += token\\n                # optional: print token live\\n                console.print(token, end=\"\", style=\"green\")\\n            console.print()  # newline after stream ends\\n            return full_reply.strip()\\n'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    },
+    {
+      "title": "Persist conversation history",
+      "description": "Store each exchange in a JSON file so the model can retain context across sessions.",
+      "build_process": "Run the updated script; after each exchange a `chat_history.json` file appears in the project root, preserving the full dialogue. Future runs can load this file to provide context (you would need to modify `call_ollama` to send the whole history).",
+      "solution_code": "{'language': 'python', 'file_path': 'src/local_ollama_chatgpt/chat.py', 'code': 'import json\\nfrom pathlib import Path\\n\\nHISTORY_FILE = Path(\"chat_history.json\")\\n\\nasync def run_chat() -> None:\\n    cfg = get_config()\\n    endpoint = cfg[\"endpoint\"]\\n    model = cfg[\"model\"]\\n    # Load existing history if present\\n    if HISTORY_FILE.exists():\\n        history = json.loads(HISTORY_FILE.read_text())\\n    else:\\n        history = []\\n    console.print(f\"[bold]Local Ollama ChatGPT – model: {model}[/bold]\\\\n\")\\n    while True:\\n        try:\\n            user_input = Prompt.ask(\"[cyan]You[/cyan]\")\\n            if not user_input.strip():\\n                console.print(\"[italic]Goodbye![/italic]\")\\n                break\\n            console.print(\"[magenta]Thinking...[/magenta]\")\\n            reply = await call_ollama(endpoint, model, user_input)\\n            console.print(f\"[green]Assistant[/green]: {reply}\\\\n\")\\n            # Append to history and write back\\n            history.append({\"role\": \"user\", \"content\": user_input})\\n            history.append({\"role\": \"assistant\", \"content\": reply})\\n            HISTORY_FILE.write_text(json.dumps(history, indent=2))\\n        except KeyboardInterrupt:\\n            console.print(\"\\\\n[italic]Interrupted – exiting.[/italic]\")\\n            break\\n        except Exception as exc:\\n            console.print(f\"[red]Error:[/red] {exc}\")\\n'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    }
+  ]
+}

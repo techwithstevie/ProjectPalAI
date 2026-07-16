@@ -1,0 +1,320 @@
+{
+  "id": "798eaa50-760e-41ba-bb95-f8fa2ece24f8",
+  "title": "FullStack Local Ollama ChatGPT",
+  "tagline": "Build a tiny web‑chat that talks to a locally‑run Ollama LLM using FastAPI and vanilla JavaScript",
+  "description": "In this tutorial we will create a complete, runnable web application from scratch. The backend is a FastAPI server that forwards user messages to an Ollama model running on the same machine. The frontend is a single HTML page with a tiny JavaScript client that streams responses back to the user. No classes, no external charting libraries – just modern Python 3.12, pathlib, type hints, and a clean src/ layout. By the end you will have a working chat UI, a test suite, and a ready‑to‑run repository.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "Developers want to experiment with large language models locally without paying for cloud APIs. Ollama provides a simple HTTP interface, but most people lack a ready‑made UI to interact with it. This project fills that gap with a minimal full‑stack chat app that can be cloned, run, and extended in minutes.",
+  "end_state": "A Git repository containing:\n- src/main.py (FastAPI server that talks to Ollama)\n- src/static/index.html (chat UI)\n- src/static/app.js (fetch‑based client)\n- pyproject.toml, poetry.lock, and a pytest suite.\nRunning `poetry install && poetry run uvicorn src.main:app --reload` starts the server, and navigating to http://localhost:8000 shows a functional chat window that streams responses from the local Ollama model.",
+  "prerequisites": [
+    "Python 3.12 installed",
+    "Poetry package manager",
+    "Ollama installed and a model pulled (e.g., `ollama pull llama3.1`)",
+    "Basic familiarity with HTTP and HTML/JS"
+  ],
+  "learning_outcomes": [
+    "Set up a modern Python project with pyproject.toml and src layout",
+    "Write async FastAPI endpoints that call external services",
+    "Use pathlib for file handling and environment configuration",
+    "Create a minimal static web UI without frameworks",
+    "Write pytest tests for async endpoints",
+    "Apply best practices: type hints, explicit error handling, and separation of concerns"
+  ],
+  "repo_layout": [
+    "{'root': ['pyproject.toml', 'poetry.lock', 'README.md', 'tests/', 'src/'], 'src': ['main.py', 'ollama_client.py', 'static/index.html', 'static/app.js', 'static/style.css'], 'tests': ['test_main.py']}"
+  ],
+  "stack": [
+    {
+      "name": "Python",
+      "version": "3.12",
+      "purpose": "backend logic and HTTP client"
+    },
+    {
+      "name": "FastAPI",
+      "version": "0.112.0",
+      "purpose": "lightweight async web framework"
+    },
+    {
+      "name": "Uvicorn",
+      "version": "0.30.0",
+      "purpose": "ASGI server"
+    },
+    {
+      "name": "Ollama",
+      "version": ">=0.3.0",
+      "purpose": "local LLM inference engine"
+    },
+    {
+      "name": "pytest-asyncio",
+      "version": "0.24.0",
+      "purpose": "async test support"
+    }
+  ],
+  "best_practices": [
+    "Use pathlib.Path for all filesystem paths – never hard‑code strings.",
+    "Keep the FastAPI app in a single function that returns an ASGI instance; this makes testing trivial.",
+    "Validate incoming JSON with Pydantic models, even if they are tiny.",
+    "Stream Ollama responses back to the client using Server‑Sent Events (SSE) for a smooth UI.",
+    "Separate pure‑Python logic (ollama_client.py) from the web layer (main.py).",
+    "Add type hints everywhere; run `mypy` in CI.",
+    "Write at least one async test that mocks the Ollama endpoint."
+  ],
+  "intro_transcript": "Hey everyone, welcome back to the channel! Today we’re going to build something that many of you have asked for – a full‑stack chat interface that talks to a locally‑running LLM via Ollama. No cloud keys, no hidden costs, just pure local inference. We’ll start from an empty folder, set up a modern Python project with Poetry, spin up a FastAPI server, and then write a tiny HTML+JavaScript front‑end that streams the model’s replies back to the browser. By the end of this video you’ll have a working chat app you can run on your laptop in under five minutes, and you’ll see best‑practice patterns like pathlib for paths, async request handling, and a small pytest suite. Grab your terminal, make sure you have Ollama installed and a model pulled, and let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Initialize the project with Poetry",
+      "goal": "Create a reproducible Python environment and basic project scaffolding",
+      "bullets": [
+        "Run `poetry new fullstack-ollama-chat`",
+        "Delete the generated package folder, keep only src/",
+        "Add FastAPI, Uvicorn, httpx, and pytest‑asyncio as dependencies",
+        "Commit the initial pyproject.toml"
+      ],
+      "speaker_notes": "First things first – we need a clean, reproducible environment. Open your terminal and type `poetry new fullstack-ollama-chat`. Poetry will give us a ready‑made layout with a src/ folder, a pyproject.toml, and a tests/ directory. Since we’re not building a library, we’ll delete the auto‑generated package folder and keep only the src/ directory for our code. Next, we add the runtime dependencies: FastAPI for the web server, Uvicorn as the ASGI server, httpx for async HTTP calls to Ollama, and pytest‑asyncio for our tests. Run `poetry add fastapi uvicorn httpx` and `poetry add --dev pytest pytest-asyncio`. This updates pyproject.toml and creates a lock file. Finally, we’ll do a quick `git init && git add . && git commit -m \"Initial project scaffold\"` so we have a baseline. That’s it – we now have a modern Python project ready for code.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "src/",
+        "tests/"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 2,
+      "title": "Create a tiny Ollama client helper",
+      "goal": "Encapsulate the HTTP call to Ollama in a reusable async function",
+      "bullets": [
+        "Add src/ollama_client.py",
+        "Define async function `generate(prompt: str) -> AsyncGenerator[str, None]`",
+        "Use httpx.AsyncClient with a streaming POST to Ollama's /api/chat endpoint",
+        "Yield each token as it arrives"
+      ],
+      "speaker_notes": "Now that we have a project, let’s write the piece that actually talks to Ollama. We’ll keep everything in a single file called `ollama_client.py` – no classes, just a plain async generator. The function `generate` will accept a user prompt, open an async httpx client, and POST to `http://localhost:11434/api/chat`. Ollama streams JSON lines where each line contains a `message` field with the next token. We’ll set `stream=True` and iterate over `response.aiter_lines()`. For each line we parse the JSON, extract the token, and `yield` it. This way the caller can stream the response directly to the browser. We also add a small docstring and type hints so mypy is happy. Finally, we raise a RuntimeError if Ollama returns a non‑200 status – that will surface as a clear error in the API layer.",
+      "code": {
+        "language": "python",
+        "file_path": "src/ollama_client.py",
+        "code": "import json\nfrom typing import AsyncGenerator\nimport httpx\nfrom pathlib import Path\n\nOLLAMA_URL = Path(\"/etc/ollama\").as_uri()  # placeholder, not used directly\n\nasync def generate(prompt: str) -> AsyncGenerator[str, None]:\n    \"\"\"Stream tokens from a local Ollama model.\n\n    Args:\n        prompt: The user message to send to the model.\n\n    Yields:\n        Individual token strings as they are produced by Ollama.\n    \"\"\"\n    url = \"http://localhost:11434/api/chat\"\n    payload = {\"model\": \"llama3.1\", \"messages\": [{\"role\": \"user\", \"content\": prompt}], \"stream\": True}\n    async with httpx.AsyncClient(timeout=60.0) as client:\n        async with client.stream(\"POST\", url, json=payload) as response:\n            response.raise_for_status()\n            async for line in response.aiter_lines():\n                if not line:\n                    continue\n                data = json.loads(line)\n                # Ollama returns {'message': {'content': 'token'}}\n                token = data.get(\"message\", {}).get(\"content\", \"\")\n                if token:\n                    yield token\n",
+        "explanation": "The function opens an async HTTP client, posts the prompt with `stream=True`, and yields each token. Using `response.raise_for_status()` ensures any HTTP error bubbles up as an exception.",
+        "expected_output": "When called with a prompt, the generator yields strings like 'Hello', ',', ' how', ' are', ' you', '?' etc.",
+        "best_practice_notes": "Use httpx for async streaming, keep the URL configurable via env var later, and always raise for non‑200 responses."
+      },
+      "files_touched": [
+        "src/ollama_client.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Build the FastAPI app and chat endpoint",
+      "goal": "Expose a `/chat` POST endpoint that streams SSE events back to the client",
+      "bullets": [
+        "Create src/main.py with a FastAPI instance",
+        "Define Pydantic model `ChatRequest` with a single `prompt` field",
+        "Implement `/chat` that calls `ollama_client.generate` and returns an `EventSourceResponse`",
+        "Add CORS middleware for local development"
+      ],
+      "speaker_notes": "With the Ollama helper ready, we can now expose a web API. In `src/main.py` we import FastAPI, add CORS middleware so our browser can talk to the server, and define a tiny Pydantic model called `ChatRequest` that just contains a `prompt` string. The `/chat` endpoint will be a POST that receives JSON, calls our `generate` async generator, and streams the tokens back to the client using Server‑Sent Events. FastAPI ships with `EventSourceResponse` from `sse_starlette`, but to keep dependencies minimal we’ll use the built‑in `StreamingResponse` and format each token as `data: <token>\n\n`. This is enough for the browser to render a live chat. We also set `media_type=\"text/event-stream\"`. Finally, we expose the FastAPI app as `app` so Uvicorn can discover it. This step gives us a fully functional backend that can be hit with curl or our front‑end JavaScript.",
+      "code": {
+        "language": "python",
+        "file_path": "src/main.py",
+        "code": "from fastapi import FastAPI, HTTPException\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom fastapi.responses import StreamingResponse\nfrom pydantic import BaseModel\nfrom typing import AsyncGenerator\n\nfrom .ollama_client import generate\n\napp = FastAPI(title=\"Local Ollama ChatGPT\")\n\n# Allow the front‑end to call the API from http://localhost:8000\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\nclass ChatRequest(BaseModel):\n    prompt: str\n\nasync def _event_stream(prompt: str) -> AsyncGenerator[bytes, None]:\n    try:\n        async for token in generate(prompt):\n            # SSE format: data: <token>\\n\\n\n            yield f\"data: {token}\\n\\n\".encode(\"utf-8\")\n    except Exception as exc:\n        # Convert any backend error into a clean SSE error message\n        yield f\"event: error\\ndata: {exc}\\n\\n\".encode(\"utf-8\")\n\n@app.post(\"/chat\")\nasync def chat_endpoint(request: ChatRequest):\n    \"\"\"Receive a user prompt and stream back Ollama tokens via SSE.\"\"\"\n    return StreamingResponse(\n        _event_stream(request.prompt),\n        media_type=\"text/event-stream\",\n        headers={\"Cache-Control\": \"no-cache\"},\n    )\n",
+        "explanation": "We create a FastAPI app, enable CORS, define a Pydantic request model, and implement a streaming endpoint that yields SSE‑formatted bytes. Errors are caught and sent as a separate `error` event.",
+        "expected_output": "POST /chat with JSON {\"prompt\": \"Hello\"} returns a stream like:\n\ndata: Hello\n\ndata: ,\n\ndata: how\n\ndata: are\n\ndata: you\n\ndata: ?\n",
+        "best_practice_notes": "Use StreamingResponse for low‑latency token delivery, keep the endpoint async, and wrap the generator in a try/except to avoid broken connections."
+      },
+      "files_touched": [
+        "src/main.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Add static files: HTML, CSS, and JavaScript",
+      "goal": "Serve a minimal chat UI that talks to the `/chat` endpoint via EventSource",
+      "bullets": [
+        "Create src/static/index.html with a textarea, send button, and message list",
+        "Add src/static/style.css for basic layout",
+        "Add src/static/app.js that opens an EventSource, appends tokens, and handles errors",
+        "Mount the static directory in FastAPI using `app.mount`"
+      ],
+      "speaker_notes": "Now we need a user interface. We’ll keep everything static – no React, no build step – just plain HTML, CSS, and a tiny JavaScript file. In `src/static/index.html` we create a simple page with a `<ul>` that will hold chat bubbles, a `<textarea>` for the user to type, and a button to send. The JavaScript in `app.js` will listen for the button click, POST the prompt to `/chat`, and then open an `EventSource` on the same URL to receive the streamed tokens. Each `data:` line is appended to the last message bubble, giving the illusion of a live typing effect. We also add a small CSS file to make the chat look tidy – a centered column, light background, and distinct user/assistant bubbles. Finally, we tell FastAPI to serve the `static` folder at the root path with `app.mount(\"/\", StaticFiles(directory=Path(__file__).parent / \"static\", html=True), name=\"static\")`. This way visiting `http://localhost:8000` loads our HTML automatically.",
+      "code": {
+        "language": "python",
+        "file_path": "src/main.py",
+        "code": "from fastapi.staticfiles import StaticFiles\nfrom pathlib import Path\n\n# Existing imports and app definition omitted for brevity\n\n# Mount static files after the FastAPI app is created\nstatic_path = Path(__file__).parent / \"static\"\napp.mount(\"/\", StaticFiles(directory=static_path, html=True), name=\"static\")\n",
+        "explanation": "We import StaticFiles and mount the `static` directory at the root URL. `html=True` makes FastAPI serve `index.html` when the path is `/`.",
+        "expected_output": "Navigating to http://localhost:8000 now returns the chat UI page.",
+        "best_practice_notes": "Mount static files early in the file so they are available for all routes."
+      },
+      "files_touched": [
+        "src/main.py",
+        "src/static/index.html",
+        "src/static/style.css",
+        "src/static/app.js"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Write the HTML skeleton",
+      "goal": "Provide the markup that the browser will render",
+      "bullets": [
+        "Add a `<div id=\"chat\" class=\"chat-container\">` for messages",
+        "Include `<textarea id=\"prompt\" rows=\"3\"></textarea>`",
+        "Add a `<button id=\"send\">Send</button>`",
+        "Link `style.css` and `app.js` at the bottom of the body"
+      ],
+      "speaker_notes": "Let’s open `src/static/index.html` and write the markup. We start with a `<head>` that loads our CSS, then a `<body>` containing a container div for the chat history, a textarea for user input, and a send button. The chat container will be a `<ul>` where each `<li>` represents a message bubble. We give the user’s messages a class `user` and the assistant’s messages a class `assistant`. At the bottom of the body we include a script tag that points to `app.js`. This file will run after the DOM is ready, so we don’t need any extra DOMContentLoaded listeners. The HTML is deliberately tiny – the goal is to focus on the streaming logic, not on fancy UI.",
+      "code": {
+        "language": "python",
+        "file_path": "src/static/index.html",
+        "code": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>Local Ollama Chat</title>\n    <link rel=\"stylesheet\" href=\"/style.css\" />\n</head>\n<body>\n    <div class=\"chat-wrapper\">\n        <ul id=\"chat\" class=\"chat-list\"></ul>\n        <div class=\"input-area\">\n            <textarea id=\"prompt\" placeholder=\"Type your message...\" rows=\"2\"></textarea>\n            <button id=\"send\">Send</button>\n        </div>\n    </div>\n    <script src=\"/app.js\"></script>\n</body>\n</html>\n",
+        "explanation": "A minimal page with a chat list, a textarea, and a button. The script tag loads our JavaScript after the DOM.",
+        "expected_output": "Opening the page shows a blank chat area, a textarea, and a Send button.",
+        "best_practice_notes": "Use semantic IDs and keep the markup static – FastAPI serves it directly."
+      },
+      "files_touched": [
+        "src/static/index.html"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Add basic styling",
+      "goal": "Make the chat UI readable and pleasant",
+      "bullets": [
+        "Define a flex column layout for the wrapper",
+        "Style `.user` and `.assistant` bubbles with different background colors",
+        "Ensure the chat list scrolls when content overflows",
+        "Add a small focus style for the textarea"
+      ],
+      "speaker_notes": "Open `src/static/style.css` and write a few rules. We set the body to use a light gray background and center the chat wrapper. The chat list is a flex column that grows, and we give each message bubble a max‑width of 70% so the text wraps nicely. User messages are aligned to the right with a blue background, while assistant messages are left‑aligned with a gray background. The input area sticks to the bottom of the viewport, and the textarea expands a bit when focused. This CSS is tiny – under 40 lines – but it makes the UI feel like a real chat app without any external libraries.",
+      "code": {
+        "language": "python",
+        "file_path": "src/static/style.css",
+        "code": "body {\n    margin: 0;\n    font-family: Arial, Helvetica, sans-serif;\n    background: #f5f5f5;\n    display: flex;\n    justify-content: center;\n    align-items: center;\n    height: 100vh;\n}\n\n.chat-wrapper {\n    width: 100%;\n    max-width: 600px;\n    height: 90vh;\n    display: flex;\n    flex-direction: column;\n    background: #fff;\n    border-radius: 8px;\n    box-shadow: 0 2px 8px rgba(0,0,0,0.1);\n    overflow: hidden;\n}\n\n.chat-list {\n    flex: 1;\n    list-style: none;\n    margin: 0;\n    padding: 1rem;\n    overflow-y: auto;\n    display: flex;\n    flex-direction: column;\n    gap: 0.5rem;\n}\n\n.chat-list li {\n    max-width: 70%;\n    padding: 0.6rem 1rem;\n    border-radius: 12px;\n    line-height: 1.4;\n}\n\n.chat-list .user {\n    align-self: flex-end;\n    background: #007bff;\n    color: #fff;\n}\n\n.chat-list .assistant {\n    align-self: flex-start;\n    background: #e2e2e2;\n    color: #000;\n}\n\n.input-area {\n    display: flex;\n    padding: 0.5rem;\n    border-top: 1px solid #ddd;\n    background: #fafafa;\n}\n\n#prompt {\n    flex: 1;\n    resize: none;\n    padding: 0.5rem;\n    border: 1px solid #ccc;\n    border-radius: 4px;\n    font-size: 1rem;\n}\n\n#send {\n    margin-left: 0.5rem;\n    padding: 0 1rem;\n    font-size: 1rem;\n    background: #28a745;\n    color: #fff;\n    border: none;\n    border-radius: 4px;\n    cursor: pointer;\n}\n\n#send:hover { background: #218838; }\n",
+        "explanation": "Flex layout, scrollable chat list, distinct colors for user vs assistant, and a simple input area.",
+        "expected_output": "The page now looks like a chat window with bubbles.",
+        "best_practice_notes": "Keep CSS in a separate static file; avoid inline styles for maintainability."
+      },
+      "files_touched": [
+        "src/static/style.css"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 7,
+      "title": "Implement the JavaScript client",
+      "goal": "Send prompts, open SSE, and render streaming tokens",
+      "bullets": [
+        "Select DOM elements (`#prompt`, `#send`, `#chat`)",
+        "On button click, POST the prompt to `/chat` and create an EventSource",
+        "Append a new `<li class=\"assistant\">` placeholder before streaming starts",
+        "On each `message` event, update the placeholder’s text content",
+        "Handle `error` events and display a red bubble"
+      ],
+      "speaker_notes": "Now the fun part – wiring the front‑end to our backend. In `src/static/app.js` we first grab the textarea, button, and chat list via `document.getElementById`. When the user clicks Send, we read the prompt, clear the textarea, and immediately add a user bubble to the chat list so the conversation feels instant. Then we POST the prompt to `/chat` using `fetch` with `method: \"POST\"` and `headers: {\"Content-Type\": \"application/json\"}`. The response is an SSE stream, so we create a new `EventSource` pointing at the same URL (the POST request itself returns a 200 with a body that we can’t directly read, so we instead open a GET to `/chat?prompt=...` – but to keep it simple we’ll use the same endpoint with a query param). For each `message` event we receive a token, we concatenate it to the last assistant bubble’s `textContent`. When the stream ends, the EventSource automatically closes. If an `error` event arrives, we add a red bubble with the error text. This logic stays under 60 lines and demonstrates real‑time streaming without any framework.",
+      "code": {
+        "language": "python",
+        "file_path": "src/static/app.js",
+        "code": "document.addEventListener('DOMContentLoaded', () => {\n  const promptEl = document.getElementById('prompt');\n  const sendBtn = document.getElementById('send');\n  const chatList = document.getElementById('chat');\n\n  const addMessage = (text, cls) => {\n    const li = document.createElement('li');\n    li.className = cls;\n    li.textContent = text;\n    chatList.appendChild(li);\n    chatList.scrollTop = chatList.scrollHeight;\n    return li;\n  };\n\n  const sendMessage = async () => {\n    const prompt = promptEl.value.trim();\n    if (!prompt) return;\n    promptEl.value = '';\n    addMessage(prompt, 'user');\n\n    // Placeholder for assistant response\n    const assistantLi = addMessage('', 'assistant');\n\n    // Build URL with query param because EventSource only supports GET\n    const url = `/chat?prompt=${encodeURIComponent(prompt)}`;\n    const source = new EventSource(url);\n\n    source.addEventListener('message', (e) => {\n      assistantLi.textContent += e.data;\n      chatList.scrollTop = chatList.scrollHeight;\n    });\n\n    source.addEventListener('error', (e) => {\n      assistantLi.textContent = 'Error: connection lost';\n      assistantLi.style.background = '#ffcccc';\n      source.close();\n    });\n  };\n\n  sendBtn.addEventListener('click', sendMessage);\n  promptEl.addEventListener('keypress', (e) => {\n    if (e.key === 'Enter' && !e.shiftKey) {\n      e.preventDefault();\n      sendMessage();\n    }\n  });\n});\n",
+        "explanation": "The script waits for DOM ready, defines helpers to add bubbles, sends the prompt, creates an EventSource for streaming, and updates the assistant bubble token‑by‑token.",
+        "expected_output": "Typing a message and hitting Send shows the user bubble instantly, then the assistant bubble fills in word by word as Ollama streams.",
+        "best_practice_notes": "EventSource only works with GET, so we pass the prompt as a query param. In production you’d secure this, but for a demo it’s fine."
+      },
+      "files_touched": [
+        "src/static/app.js"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 8,
+      "title": "Adjust the FastAPI endpoint for GET + query param",
+      "goal": "Make `/chat` accept a `prompt` query string for EventSource compatibility",
+      "bullets": [
+        "Add a new GET handler that reads `prompt: str = Query(...)`",
+        "Reuse the same `_event_stream` generator",
+        "Keep the original POST for API users",
+        "Update OpenAPI docs automatically"
+      ],
+      "speaker_notes": "Our JavaScript client uses EventSource, which only supports GET requests. To keep the API flexible we’ll add a second route that accepts the prompt as a query parameter. In `src/main.py` we import `Query` from FastAPI, then define `@app.get(\"/chat\")` that calls the same `_event_stream` generator. The POST endpoint stays unchanged for anyone who prefers a pure JSON API. FastAPI will automatically merge the two routes in the OpenAPI schema, so the docs still show both methods. After adding the GET handler we restart the server and test the UI – you should now see the assistant typing live as before.",
+      "code": {
+        "language": "python",
+        "file_path": "src/main.py",
+        "code": "from fastapi import Query\n\n@app.get(\"/chat\")\nasync def chat_get(prompt: str = Query(..., description=\"User prompt for Ollama\")):\n    \"\"\"GET version of the chat endpoint for EventSource compatibility.\"\"\"\n    return StreamingResponse(\n        _event_stream(prompt),\n        media_type=\"text/event-stream\",\n        headers={\"Cache-Control\": \"no-cache\"},\n    )\n",
+        "explanation": "A lightweight GET endpoint that forwards the prompt to the same streaming generator.",
+        "expected_output": "GET /chat?prompt=Hello returns the same SSE stream as the POST version.",
+        "best_practice_notes": "Providing both GET and POST makes the API versatile while keeping a single source of truth for streaming logic."
+      },
+      "files_touched": [
+        "src/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Write a basic async test for the chat endpoint",
+      "goal": "Ensure the server returns a streaming response and handles errors",
+      "bullets": [
+        "Create tests/test_main.py",
+        "Use httpx.AsyncClient with `app` as the ASGI app",
+        "POST a short prompt and collect the streamed bytes",
+        "Assert that the response contains the expected `data:` prefix",
+        "Mock `ollama_client.generate` to avoid hitting a real model"
+      ],
+      "speaker_notes": "Testing async streaming can feel tricky, but httpx gives us a clean way. In `tests/test_main.py` we import the FastAPI `app` and create an `AsyncClient` with `app=app`. We’ll patch `ollama_client.generate` using `unittest.mock.AsyncMock` so it yields a few fake tokens like \"Hello\" and \"world\". Then we POST to `/chat` and iterate over `response.aiter_bytes()`, concatenating the chunks. Finally we assert that the concatenated string contains `data: Hello` and `data: world`. This test runs in under a second and guarantees that our SSE formatting stays correct. Running `poetry run pytest` should show a passing test.",
+      "code": {
+        "language": "python",
+        "file_path": "tests/test_main.py",
+        "code": "import pytest\nfrom httpx import AsyncClient\nfrom unittest.mock import AsyncMock, patch\nfrom src.main import app\n\n@pytest.mark.asyncio\nasync def test_chat_stream_success():\n    async def fake_generator(_prompt: str):\n        for token in [\"Hello\", \" \", \"world\", \"!\"]:\n            yield token\n    with patch(\"src.ollama_client.generate\", new=AsyncMock(side_effect=fake_generator)):\n        async with AsyncClient(app=app, base_url=\"http://testserver\") as client:\n            response = await client.post(\"/chat\", json={\"prompt\": \"test\"})\n            assert response.status_code == 200\n            chunks = []\n            async for chunk in response.aiter_bytes():\n                chunks.append(chunk)\n            body = b\"\".join(chunks).decode()\n            assert \"data: Hello\" in body\n            assert \"data: world\" in body\n",
+        "explanation": "The test patches the real Ollama call, streams the fake tokens, and checks the SSE format.",
+        "expected_output": "pytest output showing 1 passed test.",
+        "best_practice_notes": "Mock external services in unit tests to keep them fast and deterministic."
+      },
+      "files_touched": [
+        "tests/test_main.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 10,
+      "title": "Run, verify, and commit the final project",
+      "goal": "Start the server, interact with the UI, and push the repo",
+      "bullets": [
+        "Run `poetry install` to ensure all deps are present",
+        "Start the server with `poetry run uvicorn src.main:app --reload`",
+        "Open http://localhost:8000, type a message, watch streaming tokens",
+        "Run `poetry run pytest` to confirm the test passes",
+        "Add a final commit and push to GitHub"
+      ],
+      "speaker_notes": "We’ve built every piece – the Ollama client, the FastAPI server, the static UI, and a test suite. Let’s give it a spin. In the terminal run `poetry install` if you haven’t already, then `poetry run uvicorn src.main:app --reload`. The console should show the server listening on port 8000. Open a browser, navigate to http://localhost:8000, and you’ll see the chat window. Type something like “Tell me a joke” and hit Send. You should see your message appear instantly, followed by the assistant’s reply token by token. If you see any errors, check the server logs – they’ll point you to the exact line. Once everything works, run `poetry run pytest` – you should see the single test pass. Finally, stage all changes, commit with a message like “Add full‑stack Ollama chat tutorial”, and push to your GitHub fork. You now have a complete, production‑ready starter that you can extend – add authentication, store conversation history, or swap in a different model. Great job!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "That’s a wrap for today’s tutorial! We started from an empty repository, set up a modern Python project with Poetry, built an async Ollama client, wrapped it in a FastAPI streaming endpoint, and then created a tiny vanilla JavaScript UI that shows live token streaming via Server‑Sent Events. Along the way we followed best practices – pathlib for paths, type hints everywhere, a clean src layout, and a pytest suite that mocks external calls. The whole app runs in under two minutes on any machine that has Ollama installed, and the codebase is small enough to read in a single sitting. In future videos we’ll explore adding user authentication, persisting chat history to SQLite, and even swapping the front‑end for a React version while keeping the same backend. If you enjoyed this, hit the like button, subscribe for more full‑stack Python projects, and drop a comment with what you’d like to see next. Thanks for watching, and happy coding!",
+  "final_project_code": "{'language': 'python', 'file_path': 'src/main.py', 'code': 'import json\\nfrom pathlib import Path\\nfrom typing import AsyncGenerator\\n\\nimport httpx\\nfrom fastapi import FastAPI, HTTPException, Query\\nfrom fastapi.middleware.cors import CORSMiddleware\\nfrom fastapi.responses import StreamingResponse\\nfrom fastapi.staticfiles import StaticFiles\\nfrom pydantic import BaseModel\\n\\n# ------------------- Ollama client (inline for brevity) -------------------\\nasync def _ollama_generate(prompt: str) -> AsyncGenerator[str, None]:\\n    \"\"\"Stream tokens from a local Ollama model.\\n\\n    Args:\\n        prompt: User message.\\n    Yields:\\n        Token strings.\\n    \"\"\"\\n    url = \"http://localhost:11434/api/chat\"\\n    payload = {\"model\": \"llama3.1\", \"messages\": [{\"role\": \"user\", \"content\": prompt}], \"stream\": True}\\n    async with httpx.AsyncClient(timeout=60.0) as client:\\n        async with client.stream(\"POST\", url, json=payload) as resp:\\n            resp.raise_for_status()\\n            async for line in resp.aiter_lines():\\n                if not line:\\n                    continue\\n                data = json.loads(line)\\n                token = data.get(\"message\", {}).get(\"content\", \"\")\\n                if token:\\n                    yield token\\n\\n# ------------------- FastAPI app -------------------\\napp = FastAPI(title=\"Local Ollama ChatGPT\")\\napp.add_middleware(\\n    CORSMiddleware,\\n    allow_origins=[\"*\"],\\n    allow_methods=[\"*\"],\\n    allow_headers=[\"*\"],\\n)\\n\\n# Mount static files (HTML, CSS, JS)\\nstatic_path = Path(__file__).parent / \"static\"\\napp.mount(\"/\", StaticFiles(directory=static_path, html=True), name=\"static\")\\n\\nclass ChatRequest(BaseModel):\\n    prompt: str\\n\\nasync def _event_stream(prompt: str) -> AsyncGenerator[bytes, None]:\\n    try:\\n        async for token in _ollama_generate(prompt):\\n            yield f\"data: {token}\\\\n\\\\n\".encode(\"utf-8\")\\n    except Exception as exc:\\n        yield f\"event: error\\\\ndata: {exc}\\\\n\\\\n\".encode(\"utf-8\")\\n\\n@app.post(\"/chat\")\\nasync def chat_post(request: ChatRequest):\\n    return StreamingResponse(\\n        _event_stream(request.prompt),\\n        media_type=\"text/event-stream\",\\n        headers={\"Cache-Control\": \"no-cache\"},\\n    )\\n\\n@app.get(\"/chat\")\\nasync def chat_get(prompt: str = Query(..., description=\"User prompt for Ollama\")):\\n    return StreamingResponse(\\n        _event_stream(prompt),\\n        media_type=\"text/event-stream\",\\n        headers={\"Cache-Control\": \"no-cache\"},\\n    )\\n', 'explanation': 'All core logic lives in a single file: an async generator talks to Ollama, a FastAPI app streams SSE responses, and static assets are served from the same directory. This file is the entry point for `uvicorn src.main:app`.', 'expected_output': 'Running the server and opening http://localhost:8000 shows a functional chat UI that streams tokens from the local Ollama model.', 'best_practice_notes': \"Keep the streaming generator separate from the route handlers, use type hints, and serve static files via FastAPI's built‑in StaticFiles.\"}",
+  "how_to_run": "1. Ensure Ollama is installed and a model is pulled, e.g. `ollama pull llama3.1`.\n2. Clone the repository.\n3. Install Poetry if you don’t have it: `curl -sSL https://install.python-poetry.org | python3 -`.\n4. From the project root run `poetry install` to create a virtual environment and install dependencies.\n5. Start the server: `poetry run uvicorn src.main:app --reload`.\n6. Open a browser to `http://localhost:8000`. Type a message and watch the assistant reply token‑by‑token.\n7. To run the test suite: `poetry run pytest`.\n8. (Optional) Push your changes to GitHub and share the link.",
+  "challenges": [
+    {
+      "title": "Add conversation history persistence",
+      "description": "Store each user‑assistant exchange in a SQLite database and load the last 5 messages as context for every new request.",
+      "build_process": "Extend the project, run it, then compare with the solution.",
+      "solution_code": "{'language': 'python', 'file_path': 'src/main.py', 'code': 'import aiosqlite\\n\\nDB_PATH = Path(__file__).parent / \"chat.db\"\\n\\nasync def init_db() -> None:\\n    async with aiosqlite.connect(DB_PATH) as db:\\n        await db.execute(\\n            \"\"\"CREATE TABLE IF NOT EXISTS messages (\\n                id INTEGER PRIMARY KEY AUTOINCREMENT,\\n                role TEXT NOT NULL,\\n                content TEXT NOT NULL,\\n                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\\n            )\"\"\"\\n        )\\n        await db.commit()\\n\\n# Call init_db at startup\\n@app.on_event(\"startup\")\\nasync def startup_event():\\n    await init_db()\\n\\nasync def _fetch_history(limit: int = 5) -> list[dict]:\\n    async with aiosqlite.connect(DB_PATH) as db:\\n        cursor = await db.execute(\\n            \"SELECT role, content FROM messages ORDER BY id DESC LIMIT ?\", (limit,)\\n        )\\n        rows = await cursor.fetchall()\\n        # Reverse to chronological order\\n        return [{\"role\": r[0], \"content\": r[1]} for r in reversed(rows)]\\n\\nasync def _store_message(role: str, content: str) -> None:\\n    async with aiosqlite.connect(DB_PATH) as db:\\n        await db.execute(\\n            \"INSERT INTO messages (role, content) VALUES (?, ?)\", (role, content)\\n        )\\n        await db.commit()\\n\\n# Updated generator to include history\\nasync def _ollama_generate(prompt: str) -> AsyncGenerator[str, None]:\\n    history = await _fetch_history()\\n    payload = {\\n        \"model\": \"llama3.1\",\\n        \"messages\": history + [{\"role\": \"user\", \"content\": prompt}],\\n        \"stream\": True,\\n    }\\n    async with httpx.AsyncClient(timeout=60.0) as client:\\n        async with client.stream(\"POST\", \"http://localhost:11434/api/chat\", json=payload) as resp:\\n            resp.raise_for_status()\\n            async for line in resp.aiter_lines():\\n                if not line:\\n                    continue\\n                data = json.loads(line)\\n                token = data.get(\"message\", {}).get(\"content\", \"\")\\n                if token:\\n                    yield token\\n    # Store user and assistant messages after the stream ends\\n    await _store_message(\"user\", prompt)\\n    # The assistant content is collected by the caller; for simplicity we skip storing it here.\\n', 'explanation': 'We add a SQLite DB using aiosqlite, initialize it on startup, fetch the last 5 messages, prepend them to the payload, and store each new user message. The assistant response could also be stored after the stream finishes.', 'expected_output': 'Running the server now retains conversation context across page reloads.', 'best_practice_notes': 'Use async DB drivers (aiosqlite) to avoid blocking the event loop.'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    },
+    {
+      "title": "Deploy with Docker",
+      "description": "Containerize the app so it runs anywhere with Ollama reachable via network.",
+      "build_process": "Extend the project, run it, then compare with the solution.",
+      "solution_code": "{'language': 'dockerfile', 'file_path': 'Dockerfile', 'code': 'FROM python:3.12-slim\\n\\n# Install Poetry\\nENV POETRY_VERSION=1.8.3\\nRUN pip install \"poetry==$POETRY_VERSION\"\\n\\n# Set workdir\\nWORKDIR /app\\n\\n# Copy only pyproject files first for caching\\nCOPY pyproject.toml poetry.lock ./\\nRUN poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi\\n\\n# Copy source code\\nCOPY src/ ./src/\\nCOPY tests/ ./tests/\\n\\nEXPOSE 8000\\n\\nCMD [\"uvicorn\", \"src.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\\n', 'explanation': 'The Dockerfile uses the official Python 3.12 slim image, installs Poetry, copies the project files, installs dependencies, and runs Uvicorn. Ollama must be reachable from the container (e.g., via host networking or a separate Ollama container).', 'expected_output': 'Building with `docker build -t ollama-chat .` and running `docker run -p 8000:8000 --network host ollama-chat` starts the service.', 'best_practice_notes': 'Keep the container lightweight, avoid creating a virtualenv inside Docker, and expose only the needed port.'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    }
+  ]
+}

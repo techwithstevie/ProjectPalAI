@@ -1,0 +1,6 @@
+flask
+flask-cors
+ollama
+pydantic
+matplotlib
+python-pptx

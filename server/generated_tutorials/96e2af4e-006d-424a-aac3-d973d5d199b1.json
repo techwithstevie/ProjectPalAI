@@ -1,0 +1,639 @@
+{
+  "id": "96e2af4e-006d-424a-aac3-d973d5d199b1",
+  "title": "Fullstack Ollama ChatGPT with FastAPI Backend and Vite React Frontend",
+  "tagline": "Build a complete AI chat app from scratch using modern Python and React tooling",
+  "description": "In this tutorial you will create a monolithic full‑stack project that lets users chat with an Ollama‑powered ChatGPT model. We'll set up a FastAPI backend that proxies requests to the local Ollama server, expose a clean JSON API, and build a Vite‑powered React UI that talks to the API. The whole codebase follows 2025‑2026 best practices: pyproject.toml, src layout, type hints, pathlib, pytest‑friendly tests, and modern npm scripts. By the end you have a runnable product, a test suite, and a ready‑to‑publish package.",
+  "difficulty": "beginner",
+  "size": "monolithic",
+  "estimated_hours": 30.0,
+  "problem_statement": "Developers want to experiment with local LLMs (Ollama) but lack a simple web UI. They need a lightweight backend that forwards chat messages to Ollama and a responsive frontend to display the conversation, all without dealing with complex Docker orchestration or class‑heavy code.",
+  "end_state": "A working web app at http://localhost:5173 where users can type messages, see AI replies, and the backend runs at http://localhost:8000 handling the Ollama HTTP calls. The repository contains a pyproject.toml, a FastAPI service, a Vite React app, unit tests, and documentation.",
+  "prerequisites": [
+    "Python 3.12 installed",
+    "Node.js 20+ and npm",
+    "Ollama installed locally and a model (e.g., llama3) pulled",
+    "Basic familiarity with HTTP and JavaScript"
+  ],
+  "learning_outcomes": [
+    "Set up a modern Python project with pyproject.toml and src layout",
+    "Create a FastAPI endpoint with Pydantic models and CORS",
+    "Call an external LLM service (Ollama) using httpx",
+    "Build a Vite + React UI that talks to a REST API",
+    "Write pytest tests for async FastAPI routes",
+    "Package a full‑stack repo for distribution"
+  ],
+  "repo_layout": [
+    "{'root': ['pyproject.toml', 'README.md', '.gitignore'], 'src': {'backend': ['__init__.py', 'main.py', 'schemas.py', 'ollama_client.py', 'router.py'], 'frontend': ['package.json', 'vite.config.ts', 'src/main.tsx', 'src/App.tsx', 'src/components/ChatBox.tsx', 'src/api/chat.ts']}, 'tests': ['test_backend.py']}"
+  ],
+  "stack": [
+    {
+      "name": "Python",
+      "version": "3.12",
+      "purpose": "Backend logic, API, Ollama proxy"
+    },
+    {
+      "name": "FastAPI",
+      "version": "0.112.0",
+      "purpose": "Web framework for async HTTP endpoints"
+    },
+    {
+      "name": "httpx",
+      "version": "0.27.0",
+      "purpose": "Async HTTP client to talk to Ollama"
+    },
+    {
+      "name": "Pydantic",
+      "version": "2.8",
+      "purpose": "Data validation and serialization"
+    },
+    {
+      "name": "Node.js",
+      "version": "20",
+      "purpose": "Frontend tooling"
+    },
+    {
+      "name": "Vite",
+      "version": "5.2.0",
+      "purpose": "Fast dev server and bundler"
+    },
+    {
+      "name": "React",
+      "version": "19.0.0",
+      "purpose": "UI library"
+    },
+    {
+      "name": "Axios",
+      "version": "1.7.2",
+      "purpose": "HTTP client in the browser"
+    },
+    {
+      "name": "pytest",
+      "version": "8.3.2",
+      "purpose": "Testing framework"
+    }
+  ],
+  "best_practices": [
+    "Use pathlib for all filesystem paths",
+    "Keep the backend pure functions – no classes – to stay beginner‑friendly",
+    "Separate concerns: schemas, router, and Ollama client live in distinct modules",
+    "Enable CORS only for the frontend origin",
+    "Write async code end‑to‑end for scalability",
+    "Add type hints everywhere, even for dict literals",
+    "Run tests with `pytest -q` after each checkpoint"
+  ],
+  "intro_transcript": "Hey everyone, welcome back to the channel! Today we’re going to build a complete full‑stack AI chat application using only the tools you already have on your machine – Python 3.12, FastAPI, and a Vite‑powered React frontend. The twist is that we’ll be talking to a local Ollama model, so you don’t need any cloud API keys. I’ll walk you through every file, from the pyproject.toml all the way to the final React component, and we’ll keep the code class‑free and easy to read. By the end of this video you’ll have a running web app at http://localhost:5173 where you can type a prompt and get a response from your locally hosted LLM. We’ll also add a tiny test suite so you can see how to validate async FastAPI routes. Grab a cup of coffee, open a terminal, and let’s get started – the whole thing should take about an hour and a half, and you’ll end up with a production‑ready repo you can push to GitHub. Let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Create project folder and initialise git",
+      "goal": "Set up a clean directory structure and version control",
+      "bullets": [
+        "Make a new folder called ollama-chat",
+        "Run `git init`",
+        "Create a .gitignore for Python and Node",
+        "Commit the empty repo"
+      ],
+      "speaker_notes": "First, open your terminal and navigate to where you keep your projects. Run `mkdir ollama-chat && cd ollama-chat`. We’ll initialise a git repository so we can track our progress. Inside the folder create a .gitignore file that excludes __pycache__, .venv, node_modules, and the typical OS files. After adding the file, stage everything with `git add .` and make an initial commit. This gives us a clean starting point and lets us revert if anything goes wrong later. From now on, every time we finish a checkpoint we’ll commit, so you can see the diff and understand how the app evolves.",
+      "code": null,
+      "files_touched": [
+        ".gitignore"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 2,
+      "title": "Add pyproject.toml and create src layout",
+      "goal": "Configure modern Python packaging and create src directories",
+      "bullets": [
+        "Create pyproject.toml with build-system and dependencies",
+        "Add src/backend and src/frontend folders",
+        "Add empty __init__.py in backend for namespace package",
+        "Commit the layout"
+      ],
+      "speaker_notes": "We’re moving away from the old setup.cfg style and using pyproject.toml, which is the standard in 2025. Open a new file called pyproject.toml and paste the minimal configuration: we’ll use poetry-core as the build backend, declare Python >=3.12, and list fastapi, httpx, and pydantic as runtime dependencies. Then we create a src folder with two sub‑folders: backend for our FastAPI code and frontend for the Vite app. Adding an empty __init__.py makes the backend a proper package that tools like pytest can import. Once the files are in place, stage and commit – this is our first real checkpoint.",
+      "code": {
+        "language": "python",
+        "file_path": "pyproject.toml",
+        "code": "[build-system]\nrequires = [\"setuptools>=70.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"ollama-chat\"\nversion = \"0.1.0\"\ndescription = \"Fullstack chat UI backed by a local Ollama model\"\nreadme = \"README.md\"\nrequires-python = \">=3.12\"\nlicense = {text = \"MIT\"}\nauthors = [{name = \"Your Name\", email = \"you@example.com\"}]\ndependencies = [\n    \"fastapi>=0.112.0\",\n    \"uvicorn[standard]>=0.30.0\",\n    \"httpx>=0.27.0\",\n    \"pydantic>=2.8\"\n]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n",
+        "explanation": "Standard pyproject.toml declaring dependencies and package discovery under src.",
+        "expected_output": "",
+        "best_practice_notes": "Using setuptools instead of poetry keeps the repo lightweight and works well with CI pipelines."
+      },
+      "files_touched": [
+        "pyproject.toml",
+        "src/backend/__init__.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 3,
+      "title": "Create FastAPI entry point (main.py)",
+      "goal": "Launch a minimal FastAPI app that can be run with uvicorn",
+      "bullets": [
+        "Import FastAPI and APIRouter",
+        "Create app instance",
+        "Include router from src/backend/router.py (will be empty for now)",
+        "Add a simple health check endpoint",
+        "Run with `uvicorn src.backend.main:app --reload`"
+      ],
+      "speaker_notes": "Now we write the first piece of backend code. Inside src/backend create a file called main.py. We import FastAPI, create the app object, and include a router that we’ll flesh out later. For now we add a GET /health endpoint that returns a JSON payload confirming the service is alive. This tiny endpoint is useful for both debugging and for the frontend to know the backend is reachable. After saving the file, we can start the server with uvicorn. You should see the usual startup logs and be able to curl http://localhost:8000/health to get {\"status\":\"ok\"}. This confirms our development environment is wired correctly.",
+      "code": {
+        "language": "python",
+        "file_path": "src/backend/main.py",
+        "code": "from pathlib import Path\nfrom fastapi import FastAPI\nfrom .router import api_router\n\napp = FastAPI(title=\"Ollama Chat Backend\", version=\"0.1.0\")\n\n# Include API routes defined in router.py\napp.include_router(api_router, prefix=\"/api\")\n\n@app.get(\"/health\")\nasync def health_check() -> dict[str, str]:\n    \"\"\"Simple health endpoint used by the frontend and CI checks.\"\"\"\n    return {\"status\": \"ok\"}\n",
+        "explanation": "Creates a FastAPI instance, mounts a router placeholder, and defines a health check.",
+        "expected_output": "Running `uvicorn src.backend.main:app --reload` prints startup logs and responds to GET /health with {\"status\":\"ok\"}.",
+        "best_practice_notes": "Using a dedicated router keeps main.py tidy and makes future expansion straightforward."
+      },
+      "files_touched": [
+        "src/backend/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 4,
+      "title": "Add empty router module",
+      "goal": "Provide a place for future chat endpoints",
+      "bullets": [
+        "Create src/backend/router.py",
+        "Instantiate APIRouter",
+        "Export as api_router",
+        "Leave it empty for now"
+      ],
+      "speaker_notes": "Even though we don’t have any chat routes yet, we create a router module now so that the import in main.py works. Inside src/backend/router.py we import APIRouter from fastapi, create an instance called api_router, and expose it via __all__. This file will later hold the POST /chat endpoint. Keeping the router separate follows the FastAPI recommended project layout and makes testing easier because we can import the router directly.",
+      "code": {
+        "language": "python",
+        "file_path": "src/backend/router.py",
+        "code": "from fastapi import APIRouter\n\napi_router = APIRouter()\n\n# Future chat routes will be added here\n\n__all__ = [\"api_router\"]\n",
+        "explanation": "Defines an empty APIRouter that main.py can include.",
+        "expected_output": "",
+        "best_practice_notes": "Exporting api_router via __all__ clarifies the public API of the module."
+      },
+      "files_touched": [
+        "src/backend/router.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Define Pydantic schemas for chat messages",
+      "goal": "Create request and response models with type safety",
+      "bullets": [
+        "Create src/backend/schemas.py",
+        "Define ChatRequest with a single `message` field",
+        "Define ChatResponse with `reply` field",
+        "Add docstrings for clarity"
+      ],
+      "speaker_notes": "FastAPI uses Pydantic models to validate incoming JSON and to document the API automatically. In schemas.py we define two simple models: ChatRequest, which expects a string called message, and ChatResponse, which will return the model's reply. Adding docstrings helps the autogenerated OpenAPI docs later. These models will be imported by the router when we implement the POST endpoint.",
+      "code": {
+        "language": "python",
+        "file_path": "src/backend/schemas.py",
+        "code": "from pydantic import BaseModel, Field\n\nclass ChatRequest(BaseModel):\n    \"\"\"Payload sent by the frontend containing the user message.\"\"\"\n    message: str = Field(..., description=\"User's chat prompt\")\n\nclass ChatResponse(BaseModel):\n    \"\"\"Payload returned by the backend with the model's reply.\"\"\"\n    reply: str = Field(..., description=\"Generated response from Ollama\")\n",
+        "explanation": "Two Pydantic models for request and response payloads.",
+        "expected_output": "",
+        "best_practice_notes": "Using Field with description enriches the OpenAPI schema."
+      },
+      "files_touched": [
+        "src/backend/schemas.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Implement Ollama client helper",
+      "goal": "Encapsulate HTTP call to local Ollama server",
+      "bullets": [
+        "Create src/backend/ollama_client.py",
+        "Use httpx.AsyncClient",
+        "Define async function `generate_reply(message: str) -> str`",
+        "Read Ollama URL from environment variable with fallback"
+      ],
+      "speaker_notes": "We now need a thin wrapper that talks to the Ollama HTTP API. The local Ollama server listens on http://localhost:11434 by default. In ollama_client.py we create an async function generate_reply that posts a JSON body containing the model name and the prompt. The function returns the generated text. We read the base URL from an environment variable OLLAMA_BASE_URL so the user can change it without editing code. Using httpx.AsyncClient keeps the whole stack asynchronous, which is important for scalability. We'll also add a small timeout and basic error handling – if Ollama returns a non‑200 status we raise an HTTPException that FastAPI can translate into a 502 response.",
+      "code": {
+        "language": "python",
+        "file_path": "src/backend/ollama_client.py",
+        "code": "import os\nimport json\nfrom typing import Any\nimport httpx\nfrom fastapi import HTTPException, status\n\nOLLAMA_BASE_URL = os.getenv(\"OLLAMA_BASE_URL\", \"http://localhost:11434\")\nDEFAULT_MODEL = os.getenv(\"OLLAMA_MODEL\", \"llama3\")\n\nasync def generate_reply(message: str) -> str:\n    \"\"\"Send *message* to Ollama and return the generated reply.\n\n    The function posts to ``/api/generate`` according to Ollama's HTTP spec.\n    \"\"\"\n    payload: dict[str, Any] = {\n        \"model\": DEFAULT_MODEL,\n        \"prompt\": message,\n        \"stream\": False,\n    }\n    async with httpx.AsyncClient(timeout=30.0) as client:\n        try:\n            response = await client.post(f\"{OLLAMA_BASE_URL}/api/generate\", json=payload)\n            response.raise_for_status()\n        except httpx.HTTPError as exc:\n            raise HTTPException(\n                status_code=status.HTTP_502_BAD_GATEWAY,\n                detail=f\"Failed to reach Ollama: {exc}\",\n            ) from exc\n    data = response.json()\n    # Ollama returns {'response': 'text', ...}\n    return data.get(\"response\", \"\")\n",
+        "explanation": "Async helper that posts to Ollama and returns the generated text, with environment‑configurable URL and model.",
+        "expected_output": "",
+        "best_practice_notes": "Never hard‑code URLs; use env vars. Use a short timeout to avoid hanging the API."
+      },
+      "files_touched": [
+        "src/backend/ollama_client.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 7,
+      "title": "Add POST /chat endpoint to router",
+      "goal": "Expose a chat API that forwards to Ollama",
+      "bullets": [
+        "Import ChatRequest, ChatResponse, generate_reply",
+        "Define async route handler",
+        "Return ChatResponse with the reply",
+        "Add OpenAPI summary and description"
+      ],
+      "speaker_notes": "Now we wire everything together. In router.py we import the schemas and the Ollama client. The route is a POST to /chat that receives a ChatRequest, calls generate_reply, and returns a ChatResponse. Because everything is async, FastAPI will handle the request without blocking. We also add a short docstring that appears in the Swagger UI, making the API self‑documenting. After saving, restart uvicorn and test with curl – you should get a JSON reply from the model.",
+      "code": {
+        "language": "python",
+        "file_path": "src/backend/router.py",
+        "code": "from fastapi import APIRouter, Depends, HTTPException, status\nfrom .schemas import ChatRequest, ChatResponse\nfrom .ollama_client import generate_reply\n\napi_router = APIRouter()\n\n@api_router.post(\n    \"/chat\",\n    response_model=ChatResponse,\n    summary=\"Send a message to the Ollama model\",\n    description=\"Accepts a user message and returns the model's reply.\"\n)\nasync def chat_endpoint(request: ChatRequest) -> ChatResponse:\n    \"\"\"Forward the user's *message* to Ollama and return the reply.\"\"\"\n    reply = await generate_reply(request.message)\n    if not reply:\n        raise HTTPException(\n            status_code=status.HTTP_502_BAD_GATEWAY,\n            detail=\"Empty response from Ollama\",\n        )\n    return ChatResponse(reply=reply)\n",
+        "explanation": "Defines the POST /api/chat endpoint that uses the Ollama client.",
+        "expected_output": "curl -X POST http://localhost:8000/api/chat -H 'Content-Type: application/json' -d '{\"message\":\"Hello\"}' returns {\"reply\":\"...\"}",
+        "best_practice_notes": "Returning a proper HTTPException on empty reply gives the client a clear error."
+      },
+      "files_touched": [
+        "src/backend/router.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 8,
+      "title": "Enable CORS for the React frontend",
+      "goal": "Allow browser requests from http://localhost:5173",
+      "bullets": [
+        "Install fastapi[all] which includes starlette middleware",
+        "Add CORSMiddleware to main.py",
+        "Restrict origins to http://localhost:5173",
+        "Allow GET, POST, and OPTIONS methods"
+      ],
+      "speaker_notes": "Our React app will run on a different port, so the browser will block cross‑origin requests unless we enable CORS. In main.py we import CORSMiddleware from starlette.middleware.cors and add it to the FastAPI app. We set allowed_origins to the Vite dev server URL, allow credentials, and expose the standard HTTP methods. This is a minimal yet secure configuration for local development. After adding the middleware, restart the server – the Swagger UI will still work, and the frontend will be able to call the API without CORS errors.",
+      "code": {
+        "language": "python",
+        "file_path": "src/backend/main.py",
+        "code": "from pathlib import Path\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom .router import api_router\n\napp = FastAPI(title=\"Ollama Chat Backend\", version=\"0.1.0\")\n\n# CORS configuration for local Vite dev server\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"http://localhost:5173\"],\n    allow_credentials=True,\n    allow_methods=[\"GET\", \"POST\", \"OPTIONS\"],\n    allow_headers=[\"*\"],\n)\n\napp.include_router(api_router, prefix=\"/api\")\n\n@app.get(\"/health\")\nasync def health_check() -> dict[str, str]:\n    return {\"status\": \"ok\"}\n",
+        "explanation": "Adds CORSMiddleware to allow the React dev server to call the API.",
+        "expected_output": "",
+        "best_practice_notes": "Limit origins to the exact dev URL; in production you would replace with your domain."
+      },
+      "files_touched": [
+        "src/backend/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Write first pytest for health endpoint",
+      "goal": "Validate that the FastAPI app starts and returns expected JSON",
+      "bullets": [
+        "Create tests/test_backend.py",
+        "Use httpx.AsyncClient with FastAPI's TestClient",
+        "Assert status code 200 and response body",
+        "Run pytest to see passing test"
+      ],
+      "speaker_notes": "Testing early gives confidence. In the tests folder we add test_backend.py. We import the FastAPI app, create an AsyncClient from httpx that works with the ASGI app, and call GET /health. The test asserts that we receive a 200 status and the JSON payload {\"status\":\"ok\"}. Run `pytest -q` – you should see one passing test. This pattern will be reused for the chat endpoint later.",
+      "code": {
+        "language": "python",
+        "file_path": "tests/test_backend.py",
+        "code": "import pytest\nfrom httpx import AsyncClient\nfrom src.backend.main import app\n\n@pytest.mark.asyncio\nasync def test_health_endpoint():\n    async with AsyncClient(app=app, base_url=\"http://testserver\") as client:\n        response = await client.get(\"/health\")\n    assert response.status_code == 200\n    assert response.json() == {\"status\": \"ok\"}\n",
+        "explanation": "Simple async test that hits the health route.",
+        "expected_output": "1 passed in ... seconds",
+        "best_practice_notes": "Using httpx.AsyncClient with the ASGI app avoids needing a live server."
+      },
+      "files_touched": [
+        "tests/test_backend.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 10,
+      "title": "Initialize npm workspace for the frontend",
+      "goal": "Set up Vite + React project inside src/frontend",
+      "bullets": [
+        "cd src/frontend",
+        "Run `npm create vite@latest . -- --template react-ts`",
+        "Install axios",
+        "Add a .gitignore entry for node_modules",
+        "Commit package.json and vite.config.ts"
+      ],
+      "speaker_notes": "Switch to the frontend folder and bootstrap a Vite project with the React TypeScript template. The command `npm create vite@latest . -- --template react-ts` creates the basic folder structure, a dev server, and a starter App component. After the scaffold finishes, we install axios (`npm i axios`) which we’ll use to call our backend. Remember to add node_modules to .gitignore – we don’t want to commit thousands of files. Finally, run `npm run dev` to see the default Vite page at http://localhost:5173. This confirms the frontend tooling works before we start wiring it to the API.",
+      "code": null,
+      "files_touched": [
+        "src/frontend/package.json",
+        "src/frontend/vite.config.ts",
+        "src/frontend/.gitignore"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 11,
+      "title": "Create API wrapper in React (chat.ts)",
+      "goal": "Encapsulate HTTP POST to /api/chat using axios",
+      "bullets": [
+        "Create src/frontend/src/api/chat.ts",
+        "Define async function sendMessage(message: string)",
+        "Set baseURL to http://localhost:8000/api",
+        "Export the function for use in components"
+      ],
+      "speaker_notes": "In the React code we keep API calls in a dedicated file. Inside src/frontend/src/api/chat.ts we import axios, set a base URL that points to our FastAPI server, and export a function sendMessage that posts the user’s message and returns the reply string. By centralising the call we can later add error handling or switch to websockets without touching UI components. After saving, you can test the function in the browser console – it should return a promise that resolves to the model’s reply.",
+      "code": {
+        "language": "python",
+        "file_path": "src/frontend/src/api/chat.ts",
+        "code": "import axios from \"axios\";\n\nconst api = axios.create({\n  baseURL: \"http://localhost:8000/api\",\n  timeout: 30000,\n});\n\nexport interface ChatResponse {\n  reply: string;\n}\n\nexport async function sendMessage(message: string): Promise<string> {\n  const payload = { message };\n  const response = await api.post<ChatResponse>(\"/chat\", payload);\n  return response.data.reply;\n}\n",
+        "explanation": "Axios wrapper that posts a message and returns the reply string.",
+        "expected_output": "",
+        "best_practice_notes": "Setting a timeout prevents the UI from hanging if Ollama is slow."
+      },
+      "files_touched": [
+        "src/frontend/src/api/chat.ts"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 12,
+      "title": "Build ChatBox component UI",
+      "goal": "Create a simple chat interface with input and message list",
+      "bullets": [
+        "Create src/frontend/src/components/ChatBox.tsx",
+        "Use useState for messages and current input",
+        "Call sendMessage on form submit",
+        "Render messages in a scrollable div"
+      ],
+      "speaker_notes": "Now we build the visual part. In ChatBox.tsx we define a functional component that holds an array of message objects, each with a role (user or bot) and text. The component renders a textarea for the user to type, a button to send, and a list of previous messages. When the form is submitted we call the sendMessage function we just wrote, push the user’s message and the bot’s reply onto the state, and clear the input. The UI is intentionally minimal – just enough to demonstrate the full round‑trip. We also add basic CSS classes for spacing; Vite will hot‑reload the component as we edit.",
+      "code": {
+        "language": "python",
+        "file_path": "src/frontend/src/components/ChatBox.tsx",
+        "code": "import React, { useState, FormEvent } from \"react\";\nimport { sendMessage } from \"../api/chat\";\n\ninterface Message {\n  role: \"user\" | \"bot\";\n  text: string;\n}\n\nexport const ChatBox: React.FC = () => {\n  const [messages, setMessages] = useState<Message[]>([]);\n  const [input, setInput] = useState<string>(\"\");\n  const [loading, setLoading] = useState<boolean>(false);\n\n  const handleSubmit = async (e: FormEvent) => {\n    e.preventDefault();\n    if (!input.trim()) return;\n    const userMsg: Message = { role: \"user\", text: input };\n    setMessages((prev) => [...prev, userMsg]);\n    setLoading(true);\n    try {\n      const reply = await sendMessage(input);\n      const botMsg: Message = { role: \"bot\", text: reply };\n      setMessages((prev) => [...prev, botMsg]);\n    } catch (err) {\n      const errMsg: Message = { role: \"bot\", text: \"Error contacting backend\" };\n      setMessages((prev) => [...prev, errMsg]);\n    } finally {\n      setLoading(false);\n      setInput(\"\");\n    }\n  };\n\n  return (\n    <div className=\"chat-box\" style={{ maxWidth: \"600px\", margin: \"0 auto\" }}>\n      <div className=\"messages\" style={{ minHeight: \"300px\", border: \"1px solid #ccc\", padding: \"1rem\", overflowY: \"auto\" }}>\n        {messages.map((msg, idx) => (\n          <div key={idx} style={{ marginBottom: \"0.5rem\" }}>\n            <strong>{msg.role === \"user\" ? \"You\" : \"Bot\"}:</strong> {msg.text}\n          </div>\n        ))}\n        {loading && <div>Thinking...</div>}\n      </div>\n      <form onSubmit={handleSubmit} style={{ marginTop: \"1rem\", display: \"flex\" }}>\n        <input\n          type=\"text\"\n          value={input}\n          onChange={(e) => setInput(e.target.value)}\n          placeholder=\"Ask something...\"\n          disabled={loading}\n          style={{ flexGrow: 1, padding: \"0.5rem\" }}\n        />\n        <button type=\"submit\" disabled={loading} style={{ marginLeft: \"0.5rem\" }}>\n          Send\n        </button>\n      </form>\n    </div>\n  );\n};\n",
+        "explanation": "React component handling user input, calling the backend, and displaying a simple chat log.",
+        "expected_output": "",
+        "best_practice_notes": "We keep UI state local to the component – perfect for a beginner project."
+      },
+      "files_touched": [
+        "src/frontend/src/components/ChatBox.tsx"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 13,
+      "title": "Integrate ChatBox into App component",
+      "goal": "Render the chat UI on the main page",
+      "bullets": [
+        "Open src/frontend/src/App.tsx",
+        "Import ChatBox",
+        "Replace default Vite content with <ChatBox/>",
+        "Add a simple header"
+      ],
+      "speaker_notes": "We now replace the placeholder Vite template with our chat UI. In App.tsx we import the ChatBox component and render it inside a minimal page layout that includes a header. This demonstrates how easy it is to swap out the starter code with your own. After saving, the Vite dev server hot‑reloads and you should see the chat box at the centre of the page. If you type a message, the frontend will call the backend, which in turn queries Ollama, and the reply appears below your message.",
+      "code": {
+        "language": "python",
+        "file_path": "src/frontend/src/App.tsx",
+        "code": "import React from \"react\";\nimport { ChatBox } from \"./components/ChatBox\";\n\nfunction App() {\n  return (\n    <div className=\"App\" style={{ fontFamily: \"Arial, sans-serif\", padding: \"2rem\" }}>\n      <h1>Ollama ChatGPT Demo</h1>\n      <ChatBox />\n    </div>\n  );\n}\n\nexport default App;\n",
+        "explanation": "Main entry component that renders the ChatBox.",
+        "expected_output": "",
+        "best_practice_notes": "Keeping App.tsx thin makes future routing easier."
+      },
+      "files_touched": [
+        "src/frontend/src/App.tsx"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 14,
+      "title": "Add environment variables for backend URL",
+      "goal": "Make the frontend configurable without code changes",
+      "bullets": [
+        "Create .env file in src/frontend",
+        "Add VITE_BACKEND_URL=\"http://localhost:8000/api\"",
+        "Update chat.ts to read import.meta.env.VITE_BACKEND_URL",
+        "Restart Vite dev server"
+      ],
+      "speaker_notes": "Hard‑coding the backend URL works for now, but it’s better practice to read it from an environment variable. Vite automatically injects variables prefixed with VITE_ into the client bundle. We create a .env file with VITE_BACKEND_URL set to our FastAPI address. In chat.ts we replace the hard‑coded baseURL with `import.meta.env.VITE_BACKEND_URL`. After restarting the dev server, the app still works, and we have the flexibility to point the frontend at a different backend (e.g., a production server) simply by changing the .env file.",
+      "code": {
+        "language": "python",
+        "file_path": "src/frontend/src/api/chat.ts",
+        "code": "import axios from \"axios\";\n\nconst api = axios.create({\n  baseURL: import.meta.env.VITE_BACKEND_URL as string,\n  timeout: 30000,\n});\n\nexport interface ChatResponse {\n  reply: string;\n}\n\nexport async function sendMessage(message: string): Promise<string> {\n  const payload = { message };\n  const response = await api.post<ChatResponse>(\"/chat\", payload);\n  return response.data.reply;\n}\n",
+        "explanation": "Uses Vite's env variable for the backend URL.",
+        "expected_output": "",
+        "best_practice_notes": "Never commit .env files; add them to .gitignore."
+      },
+      "files_touched": [
+        "src/frontend/.env",
+        "src/frontend/src/api/chat.ts"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 15,
+      "title": "Write integration test for chat endpoint (mock Ollama)",
+      "goal": "Ensure backend returns a reply without needing a real Ollama server",
+      "bullets": [
+        "Add tests/test_chat.py",
+        "Patch generate_reply with a stub returning a fixed string",
+        "Use AsyncClient to POST /api/chat",
+        "Assert response contains the stubbed reply"
+      ],
+      "speaker_notes": "We don’t want our CI to depend on a local Ollama installation, so we mock the generate_reply function. In test_chat.py we use unittest.mock.patch to replace generate_reply with a coroutine that returns \"Mocked reply\". Then we send a POST request to /api/chat and verify that the JSON response matches the mock. This pattern shows how to isolate external services in tests, a crucial skill for reliable pipelines. Run `pytest -q` – you should see two passing tests now.",
+      "code": {
+        "language": "python",
+        "file_path": "tests/test_chat.py",
+        "code": "import pytest\nfrom httpx import AsyncClient\nfrom unittest.mock import patch\nfrom src.backend.main import app\n\n@pytest.mark.asyncio\nasync def test_chat_endpoint_mocked():\n    async def mock_generate_reply(message: str) -> str:\n        return \"Mocked reply\"\n\n    with patch(\"src.backend.ollama_client.generate_reply\", mock_generate_reply):\n        async with AsyncClient(app=app, base_url=\"http://testserver\") as client:\n            payload = {\"message\": \"Hello\"}\n            response = await client.post(\"/api/chat\", json=payload)\n    assert response.status_code == 200\n    assert response.json() == {\"reply\": \"Mocked reply\"}\n",
+        "explanation": "Integration test that patches the Ollama client to avoid external dependency.",
+        "expected_output": "2 passed in ... seconds",
+        "best_practice_notes": "Patch the fully qualified name where the function is imported."
+      },
+      "files_touched": [
+        "tests/test_chat.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 16,
+      "title": "Add README with quick start instructions",
+      "goal": "Provide clear documentation for users",
+      "bullets": [
+        "Explain backend setup, env vars, and how to run uvicorn",
+        "Explain frontend npm install and dev server",
+        "Add a screenshot placeholder",
+        "Commit the updated README"
+      ],
+      "speaker_notes": "A good README is essential. We write a concise guide that tells a newcomer to install Python dependencies via `pip install -e .`, start the backend with `uvicorn src.backend.main:app --reload`, then open a new terminal, navigate to src/frontend, run `npm install`, and `npm run dev`. We also list the required environment variables for both sides. Adding a screenshot of the running UI helps visual learners. After saving, we commit the changes – now the repo is ready for anyone to clone and get started.",
+      "code": null,
+      "files_touched": [
+        "README.md"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 17,
+      "title": "Add script to run both servers concurrently",
+      "goal": "Provide a single command for developers",
+      "bullets": [
+        "Create run_all.py in repo root",
+        "Use subprocess to launch uvicorn and npm run dev",
+        "Handle termination signals gracefully",
+        "Update README with `python run_all.py` usage"
+      ],
+      "speaker_notes": "Running two terminals is fine for learning, but we can make life easier with a tiny Python script that spawns both processes. In run_all.py we import subprocess and start uvicorn and npm dev in separate processes. We also listen for KeyboardInterrupt and terminate both children. This script works on Unix and Windows because we use `shell=True` only where needed. After adding the file, test it – you should see both servers start, and pressing Ctrl‑C shuts them down cleanly.",
+      "code": {
+        "language": "python",
+        "file_path": "run_all.py",
+        "code": "import subprocess\nimport sys\nimport signal\nimport os\n\ndef start_backend():\n    return subprocess.Popen(\n        [sys.executable, \"-m\", \"uvicorn\", \"src.backend.main:app\", \"--reload\"],\n        stdout=subprocess.PIPE,\n        stderr=subprocess.STDOUT,\n    )\n\ndef start_frontend():\n    cwd = os.path.join(os.getcwd(), \"src\", \"frontend\")\n    return subprocess.Popen(\n        [\"npm\", \"run\", \"dev\"],\n        cwd=cwd,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.STDOUT,\n    )\n\ndef main():\n    backend = start_backend()\n    frontend = start_frontend()\n    print(\"Both backend and frontend started. Press Ctrl-C to stop.\")\n    try:\n        # Wait indefinitely while child processes run\n        signal.pause()\n    except KeyboardInterrupt:\n        print(\"\\nShutting down...\")\n        backend.terminate()\n        frontend.terminate()\n        backend.wait()\n        frontend.wait()\n        print(\"Done.\")\n\nif __name__ == \"__main__\":\n    main()\n",
+        "explanation": "Utility script that launches uvicorn and Vite dev server together.",
+        "expected_output": "Backend and frontend logs appear; Ctrl-C stops both.",
+        "best_practice_notes": "Using subprocess allows us to keep the repo language‑agnostic; for production you’d use Docker Compose."
+      },
+      "files_touched": [
+        "run_all.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 18,
+      "title": "Add type checking with mypy",
+      "goal": "Ensure static type safety across the Python codebase",
+      "bullets": [
+        "Add mypy as a dev dependency in pyproject.toml",
+        "Create mypy.ini with strict settings",
+        "Run `mypy src` and fix any issues",
+        "Commit the config file"
+      ],
+      "speaker_notes": "Even though we’re a beginner project, adding static type checking early prevents subtle bugs. In pyproject.toml under [tool.mypy] we enable strict mode. We also create a mypy.ini that sets `ignore_missing_imports = True` for third‑party packages that may not have type stubs. Running `mypy src` should pass without errors because we already used type hints everywhere. This step shows the audience how to integrate type checking into their workflow.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "mypy.ini"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 19,
+      "title": "Add CI workflow (GitHub Actions)",
+      "goal": "Automate linting, type checking, and tests on push",
+      "bullets": [
+        "Create .github/workflows/ci.yml",
+        "Set up Python 3.12 and Node 20 jobs",
+        "Install dependencies, run mypy, pytest, and npm run build",
+        "Add badge to README"
+      ],
+      "speaker_notes": "A professional repository includes a CI pipeline. We add a GitHub Actions workflow that runs on every push. The workflow sets up a matrix with Python and Node, installs the project in editable mode, runs mypy, executes pytest, and finally builds the frontend with `npm run build`. If any step fails, the PR cannot be merged. This demonstrates best practices without adding complexity to the core tutorial.",
+      "code": {
+        "language": "python",
+        "file_path": ".github/workflows/ci.yml",
+        "code": "name: CI\n\non: [push, pull_request]\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        python-version: [\"3.12\"]\n        node-version: [\"20.x\"]\n    steps:\n      - uses: actions/checkout@v4\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: ${{ matrix.python-version }}\n      - name: Install Python deps\n        run: |\n          python -m pip install --upgrade pip\n          pip install -e .[dev]\n          pip install mypy\n      - name: Run mypy\n        run: mypy src\n      - name: Run pytest\n        run: pytest -q\n      - name: Set up Node\n        uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node-version }}\n      - name: Install frontend deps\n        working-directory: src/frontend\n        run: npm ci\n      - name: Build frontend\n        working-directory: src/frontend\n        run: npm run build\n",
+        "explanation": "GitHub Actions workflow that lints, type‑checks, tests, and builds the project.",
+        "expected_output": "",
+        "best_practice_notes": "Using a matrix keeps the workflow flexible for future version upgrades."
+      },
+      "files_touched": [
+        ".github/workflows/ci.yml"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 20,
+      "title": "Add simple Dockerfile for backend",
+      "goal": "Show how to containerise the FastAPI service",
+      "bullets": [
+        "Create Dockerfile in repo root",
+        "Use python:3.12-slim base image",
+        "Copy pyproject.toml and src, install deps",
+        "Expose port 8000 and set CMD to uvicorn",
+        "Build and run locally to verify"
+      ],
+      "speaker_notes": "Even though the tutorial focuses on local development, many viewers will want to deploy. We add a minimal Dockerfile that builds the backend image. The Dockerfile uses a multi‑stage approach: first we install build dependencies, then copy the source and install the package in editable mode. We expose port 8000 and set the default command to start uvicorn. After building with `docker build -t ollama-chat-backend .` and running `docker run -p 8000:8000 ollama-chat-backend`, the API should be reachable. This step reinforces modern deployment practices without adding extra code.",
+      "code": {
+        "language": "python",
+        "file_path": "Dockerfile",
+        "code": "FROM python:3.12-slim AS builder\nWORKDIR /app\nCOPY pyproject.toml .\nCOPY src ./src\nRUN pip install --upgrade pip && \\\n    pip install -e .\n\nFROM python:3.12-slim\nWORKDIR /app\nCOPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages\nCOPY --from=builder /app /app\nEXPOSE 8000\nCMD [\"uvicorn\", \"src.backend.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n",
+        "explanation": "Dockerfile that builds and runs the FastAPI backend.",
+        "expected_output": "",
+        "best_practice_notes": "Multi‑stage builds keep the final image small."
+      },
+      "files_touched": [
+        "Dockerfile"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 21,
+      "title": "Add production build script for frontend",
+      "goal": "Generate static assets that can be served by any web server",
+      "bullets": [
+        "Add npm script \"build\" already present by Vite",
+        "Create a simple nginx.conf example in docs/",
+        "Explain how to serve the built files",
+        "Run `npm run build` to verify output"
+      ],
+      "speaker_notes": "Vite already provides a `build` script that bundles the React app into static files under `dist/`. We add a short nginx.conf example in a docs folder to show how to serve those files in production. Running `npm run build` creates the optimized assets, which you could copy to a CDN or serve with a cheap static host. This step completes the full product lifecycle: development, testing, containerisation, and production build.",
+      "code": null,
+      "files_touched": [
+        "src/frontend/docs/nginx.conf"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 22,
+      "title": "Add linting with Ruff for Python",
+      "goal": "Enforce code style automatically",
+      "bullets": [
+        "Add Ruff as a dev dependency",
+        "Create pyproject.toml [tool.ruff] section",
+        "Run `ruff check src` and fix warnings",
+        "Add pre‑commit hook (optional)"
+      ],
+      "speaker_notes": "Ruff is the modern, fast linter for Python. We add it to the dev dependencies and configure a basic rule set in pyproject.toml. Running `ruff check src` highlights any unused imports or formatting issues. Fixing them keeps the codebase clean and demonstrates good habits. Optionally we could add a pre‑commit hook, but we’ll keep it simple for the tutorial.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 23,
+      "title": "Add npm linting with ESLint",
+      "goal": "Maintain consistent JavaScript/TypeScript style",
+      "bullets": [
+        "Run `npm i -D eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin`",
+        "Create .eslintrc.cjs with recommended rules",
+        "Add lint script to package.json",
+        "Run `npm run lint` and fix any issues"
+      ],
+      "speaker_notes": "Just like Python, the frontend benefits from linting. We install ESLint and the TypeScript parser, create a config that extends the recommended rules, and add a `lint` script to package.json. Running `npm run lint` will point out missing semicolons or unused variables. Fixing them makes the codebase professional‑grade. This step rounds out the tooling for both sides of the stack.",
+      "code": null,
+      "files_touched": [
+        "src/frontend/package.json",
+        "src/frontend/.eslintrc.cjs"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 24,
+      "title": "Finalize documentation and version bump",
+      "goal": "Prepare the repo for release",
+      "bullets": [
+        "Update pyproject.toml version to 0.1.0",
+        "Add a CHANGELOG.md with initial release notes",
+        "Add a LICENSE file (MIT)",
+        "Commit all changes and tag v0.1.0"
+      ],
+      "speaker_notes": "We are almost done. The final step is to make the repository look polished. Bump the version in pyproject.toml, write a short CHANGELOG entry describing the first release, add an MIT LICENSE, and create a git tag `v0.1.0`. This gives viewers a concrete example of how to ship a package. After pushing to GitHub, the repo is ready for anyone to clone and run the full stack with a single `python run_all.py` command.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "CHANGELOG.md",
+        "LICENSE"
+      ],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "Congratulations! You’ve just built a complete full‑stack AI chat application from the ground up, using a modern Python backend, a Vite‑powered React frontend, and a local Ollama model for the heavy lifting. We covered everything: packaging with pyproject.toml, async FastAPI routes, Pydantic validation, CORS, unit and integration testing, type checking, linting, Dockerisation, and even a CI pipeline. The repo is now production‑ready – you can run it locally with a single command, build the frontend for static hosting, or spin up the Docker image for deployment. From here you could explore streaming responses, add user authentication, or swap Ollama for a remote LLM provider. The sky’s the limit, and you now have a solid foundation to keep building. Thanks for watching, hit the like button if you found this helpful, and don’t forget to subscribe for more hands‑on coding tutorials. See you in the next video!",
+  "final_project_code": "{'backend_main_py': 'from fastapi import FastAPI\\nfrom fastapi.middleware.cors import CORSMiddleware\\nfrom .router import api_router\\n\\napp = FastAPI(title=\"Ollama Chat Backend\", version=\"0.1.0\")\\n\\napp.add_middleware(\\n    CORSMiddleware,\\n    allow_origins=[\"http://localhost:5173\"],\\n    allow_credentials=True,\\n    allow_methods=[\"GET\", \"POST\", \"OPTIONS\"],\\n    allow_headers=[\"*\"],\\n)\\n\\napp.include_router(api_router, prefix=\"/api\")\\n\\n@app.get(\"/health\")\\nasync def health_check() -> dict[str, str]:\\n    return {\"status\": \"ok\"}\\n', 'backend_router_py': 'from fastapi import APIRouter, HTTPException, status\\nfrom .schemas import ChatRequest, ChatResponse\\nfrom .ollama_client import generate_reply\\n\\napi_router = APIRouter()\\n\\n@api_router.post(\\n    \"/chat\",\\n    response_model=ChatResponse,\\n    summary=\"Send a message to the Ollama model\",\\n    description=\"Accepts a user message and returns the model\\'s reply.\"\\n)\\nasync def chat_endpoint(request: ChatRequest) -> ChatResponse:\\n    reply = await generate_reply(request.message)\\n    if not reply:\\n        raise HTTPException(\\n            status_code=status.HTTP_502_BAD_GATEWAY,\\n            detail=\"Empty response from Ollama\",\\n        )\\n    return ChatResponse(reply=reply)\\n', 'backend_ollama_client_py': 'import os\\nimport httpx\\nfrom fastapi import HTTPException, status\\n\\nOLLAMA_BASE_URL = os.getenv(\"OLLAMA_BASE_URL\", \"http://localhost:11434\")\\nDEFAULT_MODEL = os.getenv(\"OLLAMA_MODEL\", \"llama3\")\\n\\nasync def generate_reply(message: str) -> str:\\n    payload = {\"model\": DEFAULT_MODEL, \"prompt\": message, \"stream\": False}\\n    async with httpx.AsyncClient(timeout=30.0) as client:\\n        try:\\n            response = await client.post(f\"{OLLAMA_BASE_URL}/api/generate\", json=payload)\\n            response.raise_for_status()\\n        except httpx.HTTPError as exc:\\n            raise HTTPException(\\n                status_code=status.HTTP_502_BAD_GATEWAY,\\n                detail=f\"Failed to reach Ollama: {exc}\",\\n            ) from exc\\n    return response.json().get(\"response\", \"\")\\n', 'frontend_chat_ts': 'import axios from \"axios\";\\n\\nconst api = axios.create({\\n  baseURL: import.meta.env.VITE_BACKEND_URL as string,\\n  timeout: 30000,\\n});\\n\\nexport interface ChatResponse { reply: string; }\\n\\nexport async function sendMessage(message: string): Promise<string> {\\n  const response = await api.post<ChatResponse>(\"/chat\", { message });\\n  return response.data.reply;\\n}\\n', 'frontend_chatbox_tsx': 'import React, { useState, FormEvent } from \"react\";\\nimport { sendMessage } from \"../api/chat\";\\n\\ninterface Message { role: \"user\" | \"bot\"; text: string; }\\n\\nexport const ChatBox: React.FC = () => {\\n  const [messages, setMessages] = useState<Message[]>([]);\\n  const [input, setInput] = useState<string>(\"\");\\n  const [loading, setLoading] = useState<boolean>(false);\\n\\n  const handleSubmit = async (e: FormEvent) => {\\n    e.preventDefault();\\n    if (!input.trim()) return;\\n    const userMsg: Message = { role: \"user\", text: input };\\n    setMessages(prev => [...prev, userMsg]);\\n    setLoading(true);\\n    try {\\n      const reply = await sendMessage(input);\\n      setMessages(prev => [...prev, { role: \"bot\", text: reply }]);\\n    } catch {\\n      setMessages(prev => [...prev, { role: \"bot\", text: \"Error contacting backend\" }]);\\n    } finally {\\n      setLoading(false);\\n      setInput(\"\");\\n    }\\n  };\\n\\n  return (\\n    <div className=\"chat-box\" style={{ maxWidth: \"600px\", margin: \"0 auto\" }}>\\n      <div className=\"messages\" style={{ minHeight: \"300px\", border: \"1px solid #ccc\", padding: \"1rem\", overflowY: \"auto\" }}>\\n        {messages.map((msg, i) => (\\n          <div key={i} style={{ marginBottom: \"0.5rem\" }}>\\n            <strong>{msg.role === \"user\" ? \"You\" : \"Bot\"}:</strong> {msg.text}\\n          </div>\\n        ))}\\n        {loading && <div>Thinking...</div>}\\n      </div>\\n      <form onSubmit={handleSubmit} style={{ marginTop: \"1rem\", display: \"flex\" }}>\\n        <input\\n          type=\"text\"\\n          value={input}\\n          onChange={e => setInput(e.target.value)}\\n          placeholder=\"Ask something...\"\\n          disabled={loading}\\n          style={{ flexGrow: 1, padding: \"0.5rem\" }}\\n        />\\n        <button type=\"submit\" disabled={loading} style={{ marginLeft: \"0.5rem\" }}>Send</button>\\n      </form>\\n    </div>\\n  );\\n};\\n', 'frontend_app_tsx': 'import React from \"react\";\\nimport { ChatBox } from \"./components/ChatBox\";\\n\\nfunction App() {\\n  return (\\n    <div className=\"App\" style={{ fontFamily: \"Arial, sans-serif\", padding: \"2rem\" }}>\\n      <h1>Ollama ChatGPT Demo</h1>\\n      <ChatBox />\\n    </div>\\n  );\\n}\\n\\nexport default App;\\n'}",
+  "how_to_run": "['Clone the repository.', 'Create a Python virtual environment and install the package in editable mode: `pip install -e .`.', 'Ensure Ollama is running locally and a model (e.g., llama3) is pulled.', 'Optionally set OLLAMA_BASE_URL and OLLAMA_MODEL in a .env file at the repo root.', 'Start the backend: `uvicorn src.backend.main:app --reload` (or `python run_all.py` to launch both services).', 'Open a new terminal, cd into src/frontend, run `npm install` then `npm run dev`.', 'Visit http://localhost:5173 in your browser, type a message, and watch the reply appear.', 'Run the test suite with `pytest -q` to verify everything works.', 'To build the frontend for production: `npm run build` and serve the `dist/` folder with any static server.', 'To containerise the backend: `docker build -t ollama-chat-backend .` then `docker run -p 8000:8000 ollama-chat-backend`.']",
+  "challenges": [
+    {
+      "title": "Streaming responses from Ollama",
+      "description": "Modify the backend to stream partial tokens back to the frontend using Server‑Sent Events, and update the React UI to display the response as it arrives.",
+      "build_process": "['Update the backend code with the streaming endpoint and client helper.', 'Restart the FastAPI server.', 'Replace the sendMessage import in ChatBox.tsx with sendMessageStream.', 'Run the app and observe the reply appearing character by character.']",
+      "solution_code": "{'backend_router_py': 'from fastapi import APIRouter, HTTPException, status\\nfrom fastapi.responses import StreamingResponse\\nfrom .schemas import ChatRequest, ChatResponse\\nfrom .ollama_client import generate_reply_stream\\n\\napi_router = APIRouter()\\n\\n@api_router.post(\"/chat/stream\", summary=\"Stream tokens from Ollama\")\\nasync def chat_stream(request: ChatRequest):\\n    async def event_generator():\\n        async for token in generate_reply_stream(request.message):\\n            yield f\"data: {token}\\\\n\\\\n\"\\n    return StreamingResponse(event_generator(), media_type=\"text/event-stream\")\\n', 'backend_ollama_client_py': 'async def generate_reply_stream(message: str):\\n    payload = {\"model\": DEFAULT_MODEL, \"prompt\": message, \"stream\": True}\\n    async with httpx.AsyncClient(timeout=30.0) as client:\\n        async with client.post(f\"{OLLAMA_BASE_URL}/api/generate\", json=payload, timeout=None) as resp:\\n            async for line in resp.aiter_lines():\\n                if line.startswith(\\'data:\\'):\\n                    data = line[5:].strip()\\n                    if data:\\n                        yield data\\n', 'frontend_chat_ts': 'export async function sendMessageStream(message: string, onToken: (t: string) => void): Promise<void> {\\n  const response = await fetch(import.meta.env.VITE_BACKEND_URL + \"/chat/stream\", {\\n    method: \"POST\",\\n    headers: { \"Content-Type\": \"application/json\" },\\n    body: JSON.stringify({ message }),\\n  });\\n  const reader = response.body?.getReader();\\n  const decoder = new TextDecoder();\\n  while (reader) {\\n    const { value, done } = await reader.read();\\n    if (done) break;\\n    const chunk = decoder.decode(value);\\n    for (const line of chunk.split(\"\\\\n\")) {\\n      if (line.startsWith(\"data:\")) {\\n        onToken(line.slice(5).trim());\\n      }\\n    }\\n  }\\n}\\n', 'frontend_chatbox_tsx': '// Inside handleSubmit replace the await sendMessage call with:\\nlet botReply = \"\";\\nawait sendMessageStream(input, (token) => {\\n  botReply += token;\\n  // optional: update UI live by setting state inside the callback\\n});\\nsetMessages(prev => [...prev, { role: \"bot\", text: botReply }]);'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    },
+    {
+      "title": "Add simple JWT authentication",
+      "description": "Protect the /api/chat endpoint so only logged‑in users can call it. Implement a login route that returns a JWT, and modify the React UI to store the token and send it in the Authorization header.",
+      "build_process": "['Add the auth module and update router with login and JWT verification.', 'Set JWT_SECRET in a .env file.', 'Create a simple Login component and render it before ChatBox in App.tsx.', 'Store the token in localStorage and include it in the Axios instance.', 'Test by logging in, then sending a chat message – the backend now sees the username.']",
+      "solution_code": "{'backend_schemas_py': 'class TokenResponse(BaseModel):\\n    access_token: str\\n    token_type: Literal[\"bearer\"] = \"bearer\"\\n\\nclass LoginRequest(BaseModel):\\n    username: str\\n    password: str\\n', 'backend_auth_py': 'import os\\nimport jwt\\nfrom datetime import datetime, timedelta\\nfrom fastapi import HTTPException, status\\n\\nSECRET_KEY = os.getenv(\"JWT_SECRET\", \"supersecret\")\\nALGORITHM = \"HS256\"\\nACCESS_TOKEN_EXPIRE_MINUTES = 30\\n\\ndef create_access_token(data: dict) -> str:\\n    to_encode = data.copy()\\n    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)\\n    to_encode.update({\"exp\": expire})\\n    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)\\n\\ndef decode_token(token: str) -> dict:\\n    try:\\n        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])\\n    except jwt.PyJWTError as exc:\\n        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=\"Invalid token\") from exc\\n', 'backend_router_py': 'from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials\\nfrom .auth import decode_token, create_access_token\\nfrom .schemas import LoginRequest, TokenResponse\\n\\nsecurity = HTTPBearer()\\n\\n@api_router.post(\"/login\", response_model=TokenResponse)\\nasync def login(req: LoginRequest):\\n    # In a real app verify against a DB; here we accept any non‑empty credentials\\n    if not req.username or not req.password:\\n        raise HTTPException(status_code=400, detail=\"Missing credentials\")\\n    token = create_access_token({\"sub\": req.username})\\n    return TokenResponse(access_token=token)\\n\\ndef get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):\\n    payload = decode_token(credentials.credentials)\\n    return payload.get(\"sub\")\\n\\n@api_router.post(\"/chat\", response_model=ChatResponse, dependencies=[Depends(get_current_user)])\\nasync def chat_endpoint(request: ChatRequest, user: str = Depends(get_current_user)):\\n    # user variable now holds the username from the token\\n    reply = await generate_reply(f\"[{user}] {request.message}\")\\n    return ChatResponse(reply=reply)\\n', 'frontend_login_tsx': 'import React, { useState } from \"react\";\\nimport axios from \"axios\";\\n\\nexport const Login: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {\\n  const [username, setUsername] = useState(\"\");\\n  const [password, setPassword] = useState(\"\");\\n  const [error, setError] = useState(\"\");\\n\\n  const handleLogin = async (e: React.FormEvent) => {\\n    e.preventDefault();\\n    try {\\n      const resp = await axios.post(import.meta.env.VITE_BACKEND_URL + \"/login\", { username, password });\\n      localStorage.setItem(\"token\", resp.data.access_token);\\n      onSuccess();\\n    } catch (err) {\\n      setError(\"Login failed\");\\n    }\\n  };\\n\\n  return (\\n    <form onSubmit={handleLogin}>\\n      <input placeholder=\"Username\" value={username} onChange={e => setUsername(e.target.value)} />\\n      <input type=\"password\" placeholder=\"Password\" value={password} onChange={e => setPassword(e.target.value)} />\\n      <button type=\"submit\">Login</button>\\n      {error && <p>{error}</p>}\\n    </form>\\n  );\\n};\\n', 'frontend_chat_ts': 'const token = localStorage.getItem(\"token\");\\nconst api = axios.create({\\n  baseURL: import.meta.env.VITE_BACKEND_URL as string,\\n  timeout: 30000,\\n  headers: token ? { Authorization: `Bearer ${token}` } : undefined,\\n});'}",
+      "solution_walkthrough": "See solution_code.",
+      "sample_output": ""
+    }
+  ]
+}
