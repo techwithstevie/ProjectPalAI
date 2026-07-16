@@ -24,6 +24,7 @@
   --violet-400: #a78bfa;
   --violet-500: #8b5cf6;
   --coral-400: #fb7185;
+  --amber-400: #fbbf24;
 
   --ok: #34d399;
   --warn: #fbbf24;
@@ -257,7 +258,9 @@ button {
   padding: 0 34px 0 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: rgba(7, 11, 20, 0.65) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7c96' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+  background: rgba(7, 11, 20, 0.65)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7c96' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E")
+    no-repeat right 12px center;
   color: var(--text-1);
   font-size: 13px;
   font-weight: 500;
@@ -280,6 +283,35 @@ button {
 .topbar select option {
   background: var(--bg-panel);
   color: var(--text-1);
+}
+
+.topbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(7, 11, 20, 0.45);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.topbar-toggle input {
+  accent-color: var(--teal-400);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.topbar-toggle:has(input:checked) {
+  border-color: rgba(45, 212, 191, 0.35);
+  color: var(--teal-300);
 }
 
 .topbar-actions {
@@ -366,9 +398,11 @@ button {
   align-items: center;
   gap: 10px;
   padding: 8px 22px;
-  background: linear-gradient(90deg,
-      rgba(45, 212, 191, 0.08),
-      rgba(139, 92, 246, 0.08));
+  background: linear-gradient(
+    90deg,
+    rgba(45, 212, 191, 0.08),
+    rgba(139, 92, 246, 0.08)
+  );
   border-bottom: 1px solid rgba(45, 212, 191, 0.15);
   color: var(--teal-300);
   font-size: 13px;
@@ -385,15 +419,20 @@ button {
   flex-shrink: 0;
 }
 
+.status-score {
+  margin-left: auto;
+  color: var(--violet-300);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.55);
   }
-
   70% {
     box-shadow: 0 0 0 10px rgba(45, 212, 191, 0);
   }
-
   100% {
     box-shadow: 0 0 0 0 rgba(45, 212, 191, 0);
   }
@@ -469,6 +508,12 @@ button {
   border-color: rgba(167, 139, 250, 0.25);
 }
 
+.badge-warn {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--amber-400);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
 .sidebar-scroll {
   flex: 1;
   overflow-y: auto;
@@ -501,9 +546,11 @@ button {
 }
 
 .nav-module-btn.active {
-  background: linear-gradient(90deg,
-      rgba(45, 212, 191, 0.14),
-      rgba(45, 212, 191, 0.04));
+  background: linear-gradient(
+    90deg,
+    rgba(45, 212, 191, 0.14),
+    rgba(45, 212, 191, 0.04)
+  );
   color: var(--teal-300);
   box-shadow: inset 3px 0 0 var(--teal-400);
 }
@@ -650,9 +697,11 @@ button {
   font-size: 16.5px;
   line-height: 1.8;
   color: var(--text-1);
-  background: linear-gradient(160deg,
-      rgba(19, 31, 52, 0.95),
-      rgba(16, 26, 44, 0.9));
+  background: linear-gradient(
+    160deg,
+    rgba(19, 31, 52, 0.95),
+    rgba(16, 26, 44, 0.9)
+  );
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px 26px;
@@ -815,6 +864,109 @@ button {
   line-height: 1.45;
 }
 
+/* Quality agents UI */
+
+.quality-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  background: rgba(7, 11, 20, 0.5);
+}
+
+.quality-pass {
+  border-color: rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.quality-fail {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.quality-score {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--teal-300);
+  min-width: 64px;
+}
+
+.quality-fail .quality-score {
+  color: var(--amber-400);
+}
+
+.quality-score span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin-left: 2px;
+}
+
+.quality-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.rail-findings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rail-findings li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  line-height: 1.4;
+  background: rgba(7, 11, 20, 0.45);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.finding-sev {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 175, 210, 0.12);
+  color: var(--text-3);
+}
+
+.finding-error .finding-sev {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--err);
+}
+
+.finding-warn .finding-sev {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--warn);
+}
+
+.finding-info .finding-sev {
+  background: rgba(167, 139, 250, 0.15);
+  color: var(--violet-300);
+}
+
+.finding-msg {
+  flex: 1;
+  min-width: 0;
+}
+
 .nav-controls {
   flex-shrink: 0;
   height: var(--nav-h);
@@ -856,9 +1008,11 @@ button {
   width: 76px;
   height: 76px;
   border-radius: 22px;
-  background: linear-gradient(145deg,
-      rgba(45, 212, 191, 0.2),
-      rgba(139, 92, 246, 0.18));
+  background: linear-gradient(
+    145deg,
+    rgba(45, 212, 191, 0.2),
+    rgba(139, 92, 246, 0.18)
+  );
   border: 1px solid rgba(45, 212, 191, 0.3);
   display: grid;
   place-items: center;
@@ -896,7 +1050,7 @@ button {
 
 .empty-state p {
   margin: 0;
-  max-width: 460px;
+  max-width: 480px;
   color: var(--text-2);
   font-size: 15px;
   line-height: 1.65;

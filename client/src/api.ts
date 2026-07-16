@@ -6,6 +6,9 @@ export interface GenerateParams {
   topic: string;
   difficulty: Difficulty;
   size: ProjectSize;
+  run_agents?: boolean;
+  use_llm_review?: boolean;
+  use_llm_repair?: boolean;
 }
 
 export async function generateTutorialStream(
@@ -15,7 +18,14 @@ export async function generateTutorialStream(
   const res = await fetch(`${BASE}/api/generate/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      topic: params.topic,
+      difficulty: params.difficulty,
+      size: params.size,
+      run_agents: params.run_agents ?? true,
+      use_llm_review: params.use_llm_review ?? true,
+      use_llm_repair: params.use_llm_repair ?? true,
+    }),
   });
 
   if (!res.ok || !res.body) {
@@ -35,9 +45,7 @@ export async function generateTutorialStream(
     buffer = chunks.pop() || "";
 
     for (const chunk of chunks) {
-      const line = chunk
-        .split("\n")
-        .find((l) => l.startsWith("data: "));
+      const line = chunk.split("\n").find((l) => l.startsWith("data: "));
       if (!line) continue;
       const payload = JSON.parse(line.slice(6));
       if (payload.type === "status") onStatus(payload.message);
@@ -52,8 +60,70 @@ export async function generateTutorialStream(
   return tutorial;
 }
 
+export async function generateTutorial(
+  params: GenerateParams
+): Promise<ProjectTutorial> {
+  const res = await fetch(`${BASE}/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      topic: params.topic,
+      difficulty: params.difficulty,
+      size: params.size,
+      run_agents: params.run_agents ?? true,
+      use_llm_review: params.use_llm_review ?? true,
+      use_llm_repair: params.use_llm_repair ?? true,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Generate failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export function exportTutorial(id: string) {
   window.open(`${BASE}/api/tutorials/${id}/export`, "_blank");
+}
+
+export async function reReviewTutorial(
+  id: string,
+  opts?: { use_llm_review?: boolean; use_llm_repair?: boolean }
+): Promise<ProjectTutorial> {
+  const q = new URLSearchParams();
+  if (opts?.use_llm_review !== undefined) {
+    q.set("use_llm_review", String(opts.use_llm_review));
+  }
+  if (opts?.use_llm_repair !== undefined) {
+    q.set("use_llm_repair", String(opts.use_llm_repair));
+  }
+  const qs = q.toString();
+  const res = await fetch(
+    `${BASE}/api/tutorials/${id}/review${qs ? `?${qs}` : ""}`,
+    { method: "POST" }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Review failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function listTutorials(): Promise<
+  {
+    id: string;
+    title: string;
+    difficulty: string;
+    size: string;
+    steps: number;
+    quality_score?: number;
+    quality_passed?: boolean;
+  }[]
+> {
+  const res = await fetch(`${BASE}/api/tutorials`);
+  if (!res.ok) throw new Error(`List failed: ${res.status}`);
+  const data = await res.json();
+  return data.tutorials || [];
 }
 
 export const generateCourseStream = generateTutorialStream;

@@ -1,137 +1,73 @@
 """
-Generate a single YouTube-style project tutorial.
+ProjectPalAI tutorial generator.
 
-No modules, no charts. Topic + difficulty + size → linear build steps
-with full spoken transcripts and project code.
+Local Ollama only (default client → 127.0.0.1:11434). No OLLAMA_HOST.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
-from typing import Any, Callable
+import uuid
+from typing import Any, Callable, Dict, List, Optional
 
 import ollama
-from schema import ProjectTutorial, ProjectSize, Difficulty
+from pydantic import ValidationError
 
-SIZE_GUIDE = {
+from schema import (
+    BuildStep,
+    Difficulty,
+    ProjectSize,
+    ProjectTutorial,
+    coerce_hours,
+)
+
+DEFAULT_MODEL = os.environ.get("PROJECTPALAI_MODEL", "gpt-oss:120b-cloud")
+
+# hours is a SINGLE float (never a range tuple).
+# steps_lo / steps_hi are separate ints so nothing can float() a pair.
+SIZE_TARGETS: Dict[ProjectSize, Dict[str, Any]] = {
     "small": {
-        "steps": "8-12",
-        "hours": "2-4",
-        "scope": "one focused feature set, few files, quick win",
+        "steps_lo": 8,
+        "steps_hi": 12,
+        "hours": 3.0,
+        "code_ratio": 0.7,
+        "checkpoints_every": 3,
     },
     "medium": {
-        "steps": "14-20",
-        "hours": "6-12",
-        "scope": "multi-module src layout, tests, clear architecture",
+        "steps_lo": 14,
+        "steps_hi": 20,
+        "hours": 9.0,
+        "code_ratio": 0.75,
+        "checkpoints_every": 3,
     },
     "monolithic": {
-        "steps": "24-36",
-        "hours": "20-40",
-        "scope": "full product: data, core logic, CLI/API, eval, docs, packaging",
+        "steps_lo": 24,
+        "steps_hi": 36,
+        "hours": 30.0,
+        "code_ratio": 0.8,
+        "checkpoints_every": 4,
     },
 }
 
-MODERN_STACK = """
-Use current (2025–2026) practices:
-- Python 3.12+, pyproject.toml, pathlib, type hints
-- pandas >=2.2, numpy >=2, scikit-learn >=1.5 when ML is relevant
-- Prefer Pipeline / composition; no deprecated APIs
-- src/ layout, pytest-friendly structure
-- NEVER invent charts or matplotlib demo plots as teaching devices
-"""
-
-SYSTEM_PROMPT = f"""Reasoning: low
-
-You write YouTube-style coding tutorials: the viewer learns ONLY by building
-one project, step by step. Each step ships real code into a repo.
-
-{MODERN_STACK}
-
-speaker_notes = full oral transcript (what the instructor says on camera).
-Respond with ONLY valid JSON, snake_case fields, no markdown fences.
-"""
-
-HARMONY_CHANNEL_PATTERN = re.compile(
+_HARMONY_CHANNEL = re.compile(
     r"<\|channel\|>\s*analysis\s*<\|message\|>.*?(?:<\|end\|>|<\|start\|>)",
     re.DOTALL,
 )
-HARMONY_FINAL_MARKER = re.compile(
-    r"<\|channel\|>\s*final\s*<\|message\|>", re.IGNORECASE
-)
-HARMONY_STRAY_TAGS = re.compile(r"<\|[a-z_]+\|>", re.IGNORECASE)
-
-FIELD_ALIASES = {
-    "courseTitle": "title",
-    "audience": "difficulty",
-    "audience_level": "difficulty",
-    "audienceLevel": "difficulty",
-    "projectSize": "size",
-    "project_size": "size",
-    "estimatedHours": "estimated_hours",
-    "problemStatement": "problem_statement",
-    "endState": "end_state",
-    "learningOutcomes": "learning_outcomes",
-    "repoLayout": "repo_layout",
-    "bestPractices": "best_practices",
-    "introTranscript": "intro_transcript",
-    "outroTranscript": "outro_transcript",
-    "finalProjectCode": "final_project_code",
-    "howToRun": "how_to_run",
-    "stepNumber": "step_number",
-    "speakerNotes": "speaker_notes",
-    "filesTouched": "files_touched",
-    "isCheckpoint": "is_checkpoint",
-    "filePath": "file_path",
-    "expectedOutput": "expected_output",
-    "bestPracticeNotes": "best_practice_notes",
-    "buildProcess": "build_process",
-    "solutionCode": "solution_code",
-    "solutionWalkthrough": "solution_walkthrough",
-    "sampleOutput": "sample_output",
-    "codeExample": "code",
-    "code_example": "code",
-}
-
-
-def _camel_to_snake(name: str) -> str:
-    out = []
-    for i, ch in enumerate(name):
-        if ch.isupper() and i > 0:
-            out.append("_")
-            out.append(ch.lower())
-        else:
-            out.append(ch.lower() if ch.isupper() else ch)
-    return "".join(out)
-
-
-def _rename_keys(obj: Any) -> Any:
-    if isinstance(obj, list):
-        return [_rename_keys(x) for x in obj]
-    if not isinstance(obj, dict):
-        return obj
-    renamed = {}
-    for key, value in obj.items():
-        if key in FIELD_ALIASES:
-            new_key = FIELD_ALIASES[key]
-        else:
-            snake = _camel_to_snake(str(key))
-            new_key = FIELD_ALIASES.get(snake, snake)
-        if new_key in renamed and renamed[new_key] not in (None, "", [], {}):
-            continue
-        renamed[new_key] = _rename_keys(value)
-    return renamed
+_HARMONY_FINAL = re.compile(r"<\|channel\|>\s*final\s*<\|message\|>", re.IGNORECASE)
+_HARMONY_TAGS = re.compile(r"<\|[a-z_]+\|>", re.IGNORECASE)
 
 
 def _strip_harmony(raw: str) -> str:
-    raw = HARMONY_CHANNEL_PATTERN.sub("", raw)
-    m = HARMONY_FINAL_MARKER.search(raw)
+    raw = _HARMONY_CHANNEL.sub("", raw)
+    m = _HARMONY_FINAL.search(raw)
     if m:
         raw = raw[m.end() :]
-    return HARMONY_STRAY_TAGS.sub("", raw).strip()
+    return _HARMONY_TAGS.sub("", raw).strip()
 
 
-def _extract_json(raw: str) -> str:
-    raw = _strip_harmony(raw)
+def extract_json(raw: str) -> str:
+    raw = _strip_harmony(raw or "")
     fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", raw, re.DOTALL)
     if fence:
         return fence.group(1)
@@ -141,340 +77,578 @@ def _extract_json(raw: str) -> str:
     return raw
 
 
-def _normalize_code(code) -> dict | None:
-    if code is None:
-        return None
-    if isinstance(code, str):
-        if not code.strip():
-            return None
+def chat_json(
+    *,
+    model: str,
+    system: str,
+    user: str,
+    temperature: float = 0.35,
+    num_predict: int = 16384,
+    schema: Optional[type] = None,
+    max_retries: int = 3,
+) -> dict:
+    last_err: Exception | None = None
+
+    for attempt in range(max_retries):
+        try:
+            kwargs: dict = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": num_predict,
+                },
+            }
+            if schema is not None:
+                try:
+                    kwargs["format"] = schema.model_json_schema()
+                except Exception:
+                    kwargs["format"] = "json"
+            else:
+                kwargs["format"] = "json"
+
+            try:
+                response = ollama.chat(**kwargs, think=False)
+            except TypeError:
+                response = ollama.chat(**kwargs)
+
+            raw = response["message"]["content"]
+            if not str(raw).strip():
+                raise ValueError("Empty model response")
+
+            return json.loads(extract_json(str(raw)))
+        except Exception as e:
+            last_err = e
+            print(f"[generator] chat_json attempt {attempt + 1} failed: {e}")
+
+    raise RuntimeError(
+        f"Ollama generation failed after {max_retries} attempts: {last_err}. "
+        f"Is `ollama serve` running? model={model}"
+    )
+
+
+SYSTEM_OUTLINE = """You are ProjectPalAI, an expert educator who writes YouTube-style
+project-based coding tutorials. You teach by building ONE real product end to end.
+
+Rules:
+- Output a single JSON object matching the ProjectTutorial shape (snake_case keys).
+- Linear steps only — no modules, no courses, no charts, no slide decks.
+- Modern stack only (Python 3.12+, current library APIs, pyproject.toml, type hints).
+- Never use deprecated APIs.
+- Pin dependency versions (e.g. >=2.2) — never "latest" alone.
+- repo_layout MUST include: pyproject.toml, README.md, src/, tests/.
+- Most steps ship real code into the same project (file_path under src/ or tests/).
+- speaker_notes = full spoken transcript (teach while building).
+- Mark is_checkpoint=true every few steps.
+- Include intro_transcript, outro_transcript, how_to_run.
+- final_project_code MUST be a single STRING (concatenate files with # --- path --- headers),
+  never an object/dict.
+- estimated_hours MUST be a single number (e.g. 3.0), never a range/array/tuple.
+- challenges items MUST include: title, description, build_process, solution_code,
+  solution_walkthrough (all strings). 0–2 challenges.
+- difficulty and size must match the user request.
+"""
+
+SYSTEM_EXPAND_STEP = """You are ProjectPalAI expanding a single build step into full
+tutorial quality. Return JSON for ONE BuildStep only (snake_case).
+
+Requirements:
+- Full speaker_notes transcript (at least ~120 words) teaching while coding.
+- If code is appropriate, provide complete runnable CodeBlock with file_path under
+  src/ or tests/ (or root config like pyproject.toml).
+- bullets: 3–6 short on-screen points.
+- files_touched must include code.file_path when code is present.
+- Modern Python 3.12+, type hints, no legacy APIs.
+- Keep step_number and title consistent with the request.
+"""
+
+
+def _default_hours(size: ProjectSize) -> float:
+    return coerce_hours(SIZE_TARGETS[size]["hours"], default=4.0)
+
+
+def _coerce_hours(v: Any, size: ProjectSize) -> float:
+    return coerce_hours(v, default=_default_hours(size))
+
+
+def _outline_user(
+    topic: str,
+    difficulty: Difficulty,
+    size: ProjectSize,
+) -> str:
+    t = SIZE_TARGETS[size]
+    lo = int(t["steps_lo"])
+    hi = int(t["steps_hi"])
+    mid_hours = coerce_hours(t["hours"], default=4.0)
+    return f"""Create a complete ProjectTutorial JSON for this request.
+
+Topic: {topic}
+Difficulty: {difficulty}
+Size: {size}
+Target steps: {lo}–{hi}
+Estimated hours: a SINGLE number {mid_hours} (not a list, not a range).
+
+Include:
+- title, tagline, description, difficulty, size, estimated_hours (single number {mid_hours})
+- problem_statement, end_state
+- prerequisites, learning_outcomes
+- repo_layout (src layout + tests + pyproject.toml + README.md)
+- stack (name, version pin, purpose) including python >=3.12
+- best_practices
+- intro_transcript
+- steps[] with step_number, title, goal, bullets, speaker_notes, optional code,
+  files_touched, is_checkpoint
+- outro_transcript
+- final_project_code as a STRING only (not an object)
+- how_to_run
+- challenges (0–2) each with title, description, build_process, solution_code, solution_walkthrough
+
+Return ONLY valid JSON for ProjectTutorial (id may be empty string).
+"""
+
+
+def _expand_step_user(
+    tutorial: ProjectTutorial,
+    step: BuildStep,
+    step_index: int,
+) -> str:
+    prev = tutorial.steps[step_index - 1] if step_index > 0 else None
+    prev_info = ""
+    if prev:
+        prev_info = (
+            f"Previous step: #{prev.step_number} {prev.title}\n"
+            f"Prev files: {prev.files_touched}\n"
+        )
+    code_hint = ""
+    if step.code:
+        code_hint = (
+            f"Existing code path: {step.code.file_path}\n"
+            f"Existing code (improve/complete if needed):\n{step.code.code[:1500]}\n"
+        )
+    return f"""Expand this build step for project: {tutorial.title}
+Difficulty: {tutorial.difficulty} · Size: {tutorial.size}
+Stack: {[s.model_dump() for s in tutorial.stack[:8]]}
+Repo layout: {tutorial.repo_layout[:20]}
+{prev_info}
+Step number: {step.step_number}
+Title: {step.title}
+Goal: {step.goal}
+Current bullets: {step.bullets}
+Current notes length: {len(step.speaker_notes or '')}
+{code_hint}
+is_checkpoint: {step.is_checkpoint}
+
+Return a full BuildStep JSON with rich speaker_notes and solid code when appropriate.
+"""
+
+
+def _dict_code_to_string(v: Any) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, dict):
+        parts = []
+        for k, val in v.items():
+            body = (
+                val
+                if isinstance(val, str)
+                else json.dumps(val, indent=2, ensure_ascii=False)
+            )
+            parts.append(f"# --- {k} ---\n{body}")
+        return "\n\n".join(parts)
+    if isinstance(v, list):
+        return "\n".join(_dict_code_to_string(x) for x in v)
+    return str(v)
+
+
+def _normalize_challenge(c: Any) -> dict:
+    if not isinstance(c, dict):
         return {
-            "language": "python",
-            "file_path": "src/main.py",
-            "code": code,
-            "explanation": "Code for this build step.",
-            "expected_output": "",
-            "best_practice_notes": "",
+            "title": "Challenge",
+            "description": str(c),
+            "build_process": str(c),
+            "solution_code": "",
+            "solution_walkthrough": "",
         }
-    if not isinstance(code, dict):
-        return None
-    code = _rename_keys(code)
-    # nested {code: "..."} sometimes
-    if "code" in code and isinstance(code["code"], dict):
-        code = {**code, **_rename_keys(code["code"])}
-    body = str(code.get("code") or "")
-    if not body.strip():
-        return None
+    d = dict(c)
+    title = d.get("title") or "Challenge"
+    description = (
+        d.get("description")
+        or d.get("prompt")
+        or d.get("task")
+        or d.get("summary")
+        or title
+    )
+    build_process = (
+        d.get("build_process")
+        or d.get("process")
+        or d.get("guide")
+        or d.get("approach")
+        or d.get("instructions")
+        or d.get("how_to_build")
+        or d.get("hint")
+        or description
+    )
+    if isinstance(build_process, (list, dict)):
+        build_process = _dict_code_to_string(build_process)
+    solution_code = (
+        d.get("solution_code") or d.get("code") or d.get("reference_code") or ""
+    )
+    if isinstance(solution_code, dict):
+        solution_code = _dict_code_to_string(solution_code)
+    walkthrough = (
+        d.get("solution_walkthrough")
+        or d.get("walkthrough")
+        or d.get("explanation")
+        or d.get("solution_notes")
+        or ""
+    )
     return {
-        "language": "python",
-        "file_path": str(code.get("file_path") or "src/main.py"),
-        "code": body,
-        "explanation": str(code.get("explanation") or ""),
-        "expected_output": str(code.get("expected_output") or ""),
-        "best_practice_notes": str(code.get("best_practice_notes") or ""),
+        "title": str(title),
+        "description": str(description),
+        "build_process": str(build_process),
+        "solution_code": str(solution_code),
+        "solution_walkthrough": str(walkthrough),
+        "sample_output": d.get("sample_output"),
     }
 
 
-def _normalize_step(step: dict, index: int) -> dict:
-    step = _rename_keys(step)
-    try:
-        step["step_number"] = int(step.get("step_number") or index + 1)
-    except (TypeError, ValueError):
-        step["step_number"] = index + 1
-    step["title"] = str(step.get("title") or f"Step {step['step_number']}")
-    step["goal"] = str(step.get("goal") or step["title"])
-    bullets = step.get("bullets") or []
-    if not isinstance(bullets, list):
-        bullets = [str(bullets)]
-    step["bullets"] = [str(b) for b in bullets]
-    step["speaker_notes"] = str(step.get("speaker_notes") or "").strip()
-    if len(step["speaker_notes"]) < 40:
-        step["speaker_notes"] = (
-            f"In this step we work on {step['title']}. "
-            f"Goal: {step['goal']}. Follow the code carefully and run it before continuing."
-        )
-    files = step.get("files_touched") or []
-    if not isinstance(files, list):
-        files = [str(files)]
-    step["files_touched"] = [str(f) for f in files]
-    step["code"] = _normalize_code(
-        step.get("code") or step.get("code_example")
-    )
-    if step["code"] and not step["files_touched"]:
-        step["files_touched"] = [step["code"]["file_path"]]
-    step["is_checkpoint"] = bool(step.get("is_checkpoint"))
-    return step
+def _normalize_tutorial_dict(
+    data: dict,
+    *,
+    topic: str,
+    difficulty: Difficulty,
+    size: ProjectSize,
+) -> dict:
+    data = dict(data or {})
+    data.setdefault("id", "")
+    data.setdefault("title", topic.title() if topic else "Untitled Project")
+    data.setdefault("tagline", "")
+    data.setdefault("description", data.get("problem_statement") or "")
+    data["difficulty"] = difficulty
+    data["size"] = size
+    # ALWAYS coerce — this kills the float(tuple) error
+    data["estimated_hours"] = _coerce_hours(data.get("estimated_hours"), size)
+    data.setdefault("problem_statement", f"Build: {topic}")
+    data.setdefault("end_state", "A working project matching the stated goals.")
+    data.setdefault("prerequisites", [])
+    data.setdefault("learning_outcomes", [])
+    data.setdefault("repo_layout", [])
+    data.setdefault("stack", [])
+    data.setdefault("best_practices", [])
+    data.setdefault("intro_transcript", "")
+    data.setdefault("outro_transcript", "")
+    data.setdefault("how_to_run", "")
+    data.setdefault("quality_report", None)
 
+    data["final_project_code"] = _dict_code_to_string(data.get("final_project_code"))
 
-def _normalize_challenge(c: dict) -> dict:
-    c = _rename_keys(c)
-    c["title"] = str(c.get("title") or "Challenge")
-    c["description"] = str(c.get("description") or "")
-    c["build_process"] = str(
-        c.get("build_process")
-        or "Extend the project, run it, then compare with the solution."
-    )
-    c["solution_code"] = str(
-        c.get("solution_code")
-        or 'print("challenge solution")\n'
-    )
-    c["solution_walkthrough"] = str(
-        c.get("solution_walkthrough") or "See solution_code."
-    )
-    c["sample_output"] = str(c.get("sample_output") or "")
-    return c
+    raw_ch = data.get("challenges") or []
+    if not isinstance(raw_ch, list):
+        raw_ch = []
+    data["challenges"] = [_normalize_challenge(c) for c in raw_ch]
 
-
-def _normalize_tutorial(data: dict, topic: str, difficulty: str, size: str) -> dict:
-    data = _rename_keys(data)
-    data["title"] = str(data.get("title") or f"Build: {topic}")
-    data["tagline"] = str(data.get("tagline") or "")
-    data["description"] = str(data.get("description") or data["title"])
-    d = str(data.get("difficulty") or difficulty).lower()
-    if d not in ("beginner", "intermediate", "advanced"):
-        d = difficulty if difficulty in ("beginner", "intermediate", "advanced") else "intermediate"
-    data["difficulty"] = d
-    s = str(data.get("size") or size).lower()
-    if s not in ("small", "medium", "monolithic"):
-        s = size if size in SIZE_GUIDE else "medium"
-    data["size"] = s
-    try:
-        data["estimated_hours"] = float(data.get("estimated_hours") or 4)
-    except (TypeError, ValueError):
-        data["estimated_hours"] = 4.0
-    data["problem_statement"] = str(data.get("problem_statement") or data["description"])
-    data["end_state"] = str(data.get("end_state") or "A working project the student can run.")
-    for lk in ("prerequisites", "learning_outcomes", "repo_layout", "best_practices"):
-        v = data.get(lk) or []
-        if not isinstance(v, list):
-            v = [str(v)]
-        data[lk] = [str(x) for x in v]
-    stack = data.get("stack") or []
-    fixed_stack = []
-    if isinstance(stack, list):
-        for item in stack:
-            if isinstance(item, str):
-                fixed_stack.append(
-                    {"name": item, "version": "latest", "purpose": ""}
-                )
-            elif isinstance(item, dict):
-                item = _rename_keys(item)
-                fixed_stack.append(
-                    {
-                        "name": str(item.get("name") or "package"),
-                        "version": str(item.get("version") or "latest"),
-                        "purpose": str(item.get("purpose") or ""),
-                    }
-                )
-    if not fixed_stack:
-        fixed_stack = [
-            {"name": "python", "version": ">=3.12", "purpose": "Runtime"},
-            {"name": "pytest", "version": ">=8.0", "purpose": "Tests"},
-        ]
-    data["stack"] = fixed_stack
-    data["intro_transcript"] = str(data.get("intro_transcript") or "")
-    data["outro_transcript"] = str(data.get("outro_transcript") or "")
-    data["final_project_code"] = str(data.get("final_project_code") or "")
-    data["how_to_run"] = str(data.get("how_to_run") or "python -m src.main")
     steps = data.get("steps") or []
-    if not isinstance(steps, list):
-        steps = []
-    data["steps"] = [
-        _normalize_step(st, i) for i, st in enumerate(steps) if isinstance(st, dict)
-    ]
-    # Ensure step numbers sequential
-    for i, st in enumerate(data["steps"]):
-        st["step_number"] = i + 1
-    challenges = data.get("challenges") or []
-    if not isinstance(challenges, list):
-        challenges = []
-    data["challenges"] = [
-        _normalize_challenge(c) for c in challenges if isinstance(c, dict)
-    ]
+    fixed_steps = []
+    for i, s in enumerate(steps):
+        if not isinstance(s, dict):
+            continue
+        s = dict(s)
+        sn = s.get("step_number")
+        if isinstance(sn, (list, tuple)):
+            sn = sn if sn else (i + 1)
+        try:
+            s["step_number"] = int(sn or (i + 1))
+        except Exception:
+            s["step_number"] = i + 1
+        s.setdefault("title", f"Step {i + 1}")
+        s.setdefault("goal", s.get("title") or "Advance the project")
+        s.setdefault("bullets", [])
+        s.setdefault("speaker_notes", s.get("notes") or s.get("transcript") or "")
+        s.setdefault("files_touched", [])
+        s.setdefault("is_checkpoint", bool(s.get("is_checkpoint", False)))
+        code = s.get("code")
+        if isinstance(code, dict):
+            code = dict(code)
+            if "file_path" not in code:
+                for k in ("path", "filename", "file", "filepath"):
+                    if k in code:
+                        code["file_path"] = code[k]
+                        break
+            if "code" not in code:
+                for k in ("content", "source", "body", "snippet"):
+                    if k in code:
+                        code["code"] = code[k]
+                        break
+            code.setdefault("language", "python")
+            code.setdefault("file_path", f"src/step_{i + 1}.py")
+            code.setdefault("code", "")
+            code.setdefault("explanation", "")
+            if isinstance(code.get("code"), dict):
+                code["code"] = _dict_code_to_string(code["code"])
+            s["code"] = code
+        elif isinstance(code, str) and code.strip():
+            s["code"] = {
+                "language": "python",
+                "file_path": f"src/step_{i + 1}.py",
+                "code": code,
+                "explanation": "",
+            }
+        else:
+            s["code"] = None
+        fixed_steps.append(s)
+    data["steps"] = fixed_steps
     return data
 
 
-def _chat_json(
+def _ensure_min_layout(tutorial: ProjectTutorial) -> ProjectTutorial:
+    layout = list(tutorial.repo_layout or [])
+    joined = " ".join(layout).lower()
+    for entry in ("pyproject.toml", "README.md", "src/", "tests/"):
+        key = entry.rstrip("/").lower()
+        if key not in joined:
+            layout.append(entry)
+            joined += " " + key
+    tutorial.repo_layout = layout
+    return tutorial
+
+
+def expand_steps(
+    tutorial: ProjectTutorial,
+    *,
     model: str,
-    user_prompt: str,
-    max_retries: int = 2,
-    num_predict: int = 16384,
-    temperature: float = 0.2,
-    normalize=None,
-) -> ProjectTutorial:
-    last_error = None
-    for attempt in range(max_retries):
-        response = ollama.chat(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            format=ProjectTutorial.model_json_schema(),
-            think=False,
-            options={"temperature": temperature, "num_predict": num_predict},
-        )
-        raw = response["message"]["content"]
-        try:
-            data = json.loads(_extract_json(raw))
-            if normalize:
-                data = normalize(data)
-            return ProjectTutorial.model_validate(data)
-        except Exception as e:
-            last_error = e
-            print(f"[generator] attempt {attempt + 1} failed: {e}")
-            print(f"[generator] raw preview: {raw[:500]!r}")
-    raise RuntimeError(f"Tutorial generation failed: {last_error}")
-
-
-def generate_tutorial(
-    topic: str,
-    difficulty: Difficulty = "intermediate",
-    size: ProjectSize = "medium",
-    model: str = "gpt-oss:120b-cloud",
     progress_callback: Callable[[str], None] | None = None,
+    expand_all: bool = False,
 ) -> ProjectTutorial:
     def log(msg: str):
         print(msg)
         if progress_callback:
             progress_callback(msg)
 
-    guide = SIZE_GUIDE.get(size, SIZE_GUIDE["medium"])
-    log(f'Planning {size} project tutorial: "{topic}" ({difficulty})…')
+    new_steps: List[BuildStep] = []
+    total = len(tutorial.steps)
 
-    prompt = f"""
-Create a complete YouTube-style PROJECT TUTORIAL.
+    for i, step in enumerate(tutorial.steps):
+        notes = (step.speaker_notes or "").strip()
+        code_body = ""
+        if step.code and step.code.code:
+            code_body = step.code.code.strip()
 
-Viewer builds ONE project from zero to working software.
-NO modules. NO classes. NO charts/graphs. Linear steps only.
-
-Topic / what to build: "{topic}"
-Difficulty: {difficulty}
-Size: {size}
-Target steps: {guide['steps']}
-Estimated hours: ~{guide['hours']}
-Scope: {guide['scope']}
-
-{MODERN_STACK}
-
-JSON fields (snake_case):
-title, tagline, description, difficulty, size, estimated_hours,
-problem_statement, end_state, prerequisites, learning_outcomes,
-repo_layout, stack (name, version, purpose), best_practices,
-intro_transcript, steps, outro_transcript,
-final_project_code, how_to_run, challenges
-
-Each step:
-step_number, title, goal, bullets (4-8 short),
-speaker_notes (FULL YouTube transcript 300-600 words — teach by building),
-code (object: language, file_path, code, explanation, expected_output, best_practice_notes)
-  OR null only for pure setup/talk steps (max 2 without code),
-files_touched, is_checkpoint (true every few steps when they should run)
-
-Rules:
-- Almost every step includes working Python code that advances the SAME project
-- Code uses modern APIs; file_path matches repo_layout
-- intro_transcript: 200-400 word channel-style intro
-- outro_transcript: 150-300 word wrap-up + next ideas
-- final_project_code: substantial combined exemplar
-- challenges: 1-2 optional stretch tasks with full solution_code + build_process
-- difficulty={difficulty}, size={size}
-
-Return ONLY the ProjectTutorial JSON.
-"""
-    # Monolithic needs more tokens
-    num_predict = {"small": 12288, "medium": 16384, "monolithic": 24576}.get(
-        size, 16384
-    )
-
-    log("Generating full step-by-step tutorial (this can take a while)…")
-    tutorial = _chat_json(
-        model,
-        prompt,
-        num_predict=num_predict,
-        normalize=lambda d: _normalize_tutorial(d, topic, difficulty, size),
-    )
-
-    # If model under-delivered steps for large sizes, expand in a second pass
-    min_steps = {"small": 6, "medium": 12, "monolithic": 20}.get(size, 8)
-    if len(tutorial.steps) < min_steps:
-        log(
-            f"Only {len(tutorial.steps)} steps — expanding to reach {size} depth…"
+        needs = expand_all or len(notes) < 80 or (
+            step.code is not None and len(code_body) < 30
         )
-        tutorial = _expand_steps(tutorial, topic, difficulty, size, model, min_steps)
+        if not needs:
+            new_steps.append(step)
+            continue
+
+        log(f"Expanding step {i + 1}/{total}: {step.title}…")
+        try:
+            raw = chat_json(
+                model=model,
+                system=SYSTEM_EXPAND_STEP,
+                user=_expand_step_user(tutorial, step, i),
+                temperature=0.3,
+                num_predict=6144,
+                schema=BuildStep,
+            )
+            if "step_number" not in raw:
+                raw["step_number"] = step.step_number
+            expanded = BuildStep.model_validate(raw)
+            expanded.step_number = step.step_number
+            if not expanded.title:
+                expanded.title = step.title
+            new_steps.append(expanded)
+        except Exception as e:
+            log(f"Step expand failed ({step.title}): {e} — keeping draft")
+            new_steps.append(step)
+
+    tutorial.steps = new_steps
+    return tutorial
+
+
+def generate_tutorial(
+    topic: str,
+    difficulty: Difficulty = "intermediate",
+    size: ProjectSize = "medium",
+    model: str = DEFAULT_MODEL,
+    progress_callback: Callable[[str], None] | None = None,
+    run_agents: bool = True,
+    use_llm_review: bool = True,
+    use_llm_repair: bool = True,
+    expand_thin_steps: bool = True,
+) -> ProjectTutorial:
+    def log(msg: str):
+        print(msg)
+        if progress_callback:
+            progress_callback(msg)
+
+    topic = (topic or "").strip()
+    if not topic:
+        raise ValueError("topic is required")
+    if size not in SIZE_TARGETS:
+        size = "medium"
+    if difficulty not in ("beginner", "intermediate", "advanced"):
+        difficulty = "intermediate"
+
+    targets = SIZE_TARGETS[size]
+    lo = int(targets["steps_lo"])
+    hi = int(targets["steps_hi"])
+    log(
+        f'Generating {size} / {difficulty} tutorial for "{topic}" '
+        f"(target {lo}–{hi} steps)…"
+    )
+    log(f"Ollama model={model} (local default client)")
+
+    log("Drafting full tutorial outline…")
+    raw = chat_json(
+        model=model,
+        system=SYSTEM_OUTLINE,
+        user=_outline_user(topic, difficulty, size),
+        temperature=0.4,
+        num_predict=20000,
+        schema=ProjectTutorial,
+        max_retries=3,
+    )
+    raw = _normalize_tutorial_dict(raw, topic=topic, difficulty=difficulty, size=size)
+
+    try:
+        tutorial = ProjectTutorial.model_validate(raw)
+    except ValidationError as e:
+        log(f"Validation issues on draft, retrying normalize: {e}")
+        steps_ok = []
+        for s in raw.get("steps") or []:
+            try:
+                steps_ok.append(BuildStep.model_validate(s).model_dump())
+            except Exception as se:
+                log(f"Dropping invalid step: {se}")
+                continue
+        raw["steps"] = steps_ok
+        raw["final_project_code"] = _dict_code_to_string(raw.get("final_project_code"))
+        raw["challenges"] = [
+            _normalize_challenge(c) for c in (raw.get("challenges") or [])
+        ]
+        raw["estimated_hours"] = _coerce_hours(raw.get("estimated_hours"), size)
+        try:
+            tutorial = ProjectTutorial.model_validate(raw)
+        except ValidationError as e2:
+            log(f"Still invalid after normalize: {e2}")
+            safe_hours = _coerce_hours(raw.get("estimated_hours"), size)
+            tutorial = ProjectTutorial(
+                title=str(raw.get("title") or topic.title()),
+                tagline=str(raw.get("tagline") or ""),
+                description=str(raw.get("description") or ""),
+                difficulty=difficulty,
+                size=size,
+                estimated_hours=safe_hours,
+                problem_statement=str(
+                    raw.get("problem_statement") or f"Build: {topic}"
+                ),
+                end_state=str(raw.get("end_state") or "A working project."),
+                steps=[BuildStep.model_validate(s) for s in steps_ok]
+                if steps_ok
+                else [
+                    BuildStep(
+                        step_number=1,
+                        title="Scaffold the project",
+                        goal="Create layout and entrypoint",
+                        bullets=["Create src layout", "Add pyproject.toml"],
+                        speaker_notes=(
+                            "We start by scaffolding a modern Python project with a src "
+                            "layout, tests, and a pinned dependency set. Follow along as "
+                            "we create the skeleton, then build features step by step."
+                        ),
+                        files_touched=["pyproject.toml", "src/", "tests/"],
+                        is_checkpoint=True,
+                    )
+                ],
+                final_project_code=_dict_code_to_string(raw.get("final_project_code")),
+                how_to_run=str(
+                    raw.get("how_to_run") or "pip install -e .\npytest -q\n"
+                ),
+            )
+
+    tutorial = _ensure_min_layout(tutorial)
+    if not tutorial.id:
+        tutorial.id = str(uuid.uuid4())
+
+    # Force hours one more time after any agent/model path
+    tutorial.estimated_hours = coerce_hours(
+        tutorial.estimated_hours, default=_default_hours(size)
+    )
+
+    log(f"Draft ready: {len(tutorial.steps)} steps · {tutorial.title}")
+
+    if expand_thin_steps and tutorial.steps:
+        log("Polishing thin steps…")
+        tutorial = expand_steps(
+            tutorial,
+            model=model,
+            progress_callback=progress_callback,
+            expand_all=False,
+        )
+
+    if run_agents:
+        log("Running quality agents (structure · practices · code · repair)…")
+        try:
+            from agents.pipeline import run_quality_pipeline
+
+            tutorial, report = run_quality_pipeline(
+                tutorial,
+                model=model,
+                use_llm_review=use_llm_review,
+                use_llm_repair=use_llm_repair,
+                progress_callback=progress_callback,
+            )
+            tutorial.estimated_hours = coerce_hours(
+                tutorial.estimated_hours, default=_default_hours(size)
+            )
+            try:
+                tutorial.quality_report = report.model_dump()
+            except Exception:
+                tutorial.quality_report = {
+                    "passed": getattr(report, "passed", False),
+                    "score": getattr(report, "score", 0),
+                    "findings_count": getattr(report, "findings_count", 0),
+                    "error_count": getattr(report, "error_count", 0),
+                    "warning_count": getattr(report, "warning_count", 0),
+                }
+            log(
+                f"Agents finished — score {report.score:.0f}/100, "
+                f"{report.findings_count} open finding(s) after repair"
+            )
+        except Exception as e:
+            log(f"Quality pipeline error (returning draft): {e}")
+            tutorial.quality_report = {
+                "passed": False,
+                "score": 0,
+                "findings_count": 0,
+                "error_count": 1,
+                "warning_count": 0,
+                "reviews": [],
+                "repair": {
+                    "applied": False,
+                    "summary": f"Pipeline error: {e}",
+                    "actions": [],
+                    "remaining_issues": [str(e)],
+                },
+            }
+    else:
+        log("Quality agents skipped (run_agents=false)")
+
+    for i, step in enumerate(tutorial.steps):
+        step.step_number = i + 1
+
+    tutorial.estimated_hours = coerce_hours(
+        tutorial.estimated_hours, default=_default_hours(size)
+    )
 
     log(f"Ready: {len(tutorial.steps)} steps · {tutorial.title}")
     return tutorial
 
 
-def _expand_steps(
-    draft: ProjectTutorial,
-    topic: str,
-    difficulty: str,
-    size: str,
-    model: str,
-    min_steps: int,
-) -> ProjectTutorial:
-    guide = SIZE_GUIDE[size]
-    existing = [
-        f"{s.step_number}. {s.title}" for s in draft.steps
-    ]
-    prompt = f"""
-The tutorial is too short. Return a FULL ProjectTutorial JSON with at least {min_steps} steps
-(target {guide['steps']}) for:
-
-Topic: {topic}
-Difficulty: {difficulty}
-Size: {size}
-Title: {draft.title}
-Existing outline: {existing}
-
-Rebuild the entire steps array in order — denser build steps, more code,
-same single project. Keep intro_transcript, outro_transcript, stack, etc.
-No charts. snake_case JSON only.
-"""
-    try:
-        return _chat_json(
-            model,
-            prompt,
-            num_predict=24576,
-            normalize=lambda d: _normalize_tutorial(d, topic, difficulty, size),
-        )
-    except Exception as e:
-        print(f"[expand_steps] failed: {e}")
-        return draft
-
-
-# ---- API compatibility shims (old names) ----
-
-def generate_course(
-    topic: str,
-    audience_level: str = "intermediate",
-    size: str = "medium",
-    project_size: str | None = None,
-    model: str = "gpt-oss:120b-cloud",
-    progress_callback=None,
-    **_ignored,
-) -> ProjectTutorial:
-    """main.py may still pass old kwargs; ignore modules/weeks/etc."""
-    sz = project_size or size or "medium"
-    if sz not in SIZE_GUIDE:
-        sz = "medium"
-    diff = audience_level if audience_level in (
-        "beginner", "intermediate", "advanced"
-    ) else "intermediate"
-    return generate_tutorial(
-        topic=topic,
-        difficulty=diff,  # type: ignore
-        size=sz,  # type: ignore
-        model=model,
-        progress_callback=progress_callback,
-    )
-
-
-def generate_lecture(topic: str, **kwargs) -> ProjectTutorial:
-    return generate_course(topic, size="small", **kwargs)
-
-
-if __name__ == "__main__":
-    t = generate_tutorial("CLI todo app with SQLite", difficulty="beginner", size="small")
-    print(t.model_dump_json(indent=2)[:2000])
+def generate_course(*args, **kwargs) -> ProjectTutorial:
+    return generate_tutorial(*args, **kwargs)

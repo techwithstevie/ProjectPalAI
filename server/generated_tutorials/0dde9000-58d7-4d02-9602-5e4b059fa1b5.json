@@ -1,0 +1,302 @@
+{
+  "id": "0dde9000-58d7-4d02-9602-5e4b059fa1b5",
+  "title": "Build a Custom Text Classification Model with FastAPI",
+  "tagline": "From raw data to a live prediction API in under 3 hours",
+  "description": "In this tutorial you will create a tiny machine‑learning pipeline that trains a logistic‑regression classifier on a few example sentences, wrap it in a FastAPI service, and ship it with a clean project layout. You will learn how to structure a Python package, write type‑annotated code, and test both the model and the HTTP API.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "You need a lightweight, custom text‑classification service that can be trained on a handful of examples and exposed via a REST endpoint, but you don’t want to wrestle with Dockerfiles, complex pipelines, or heavyweight frameworks.",
+  "end_state": "A runnable FastAPI server that accepts a JSON payload with a text field and returns the predicted label. The code lives in a well‑structured, type‑annotated Python package with unit and integration tests.",
+  "prerequisites": [
+    "Basic Python knowledge (functions, classes, typing)",
+    "Familiarity with the command line (creating virtual environments, installing packages)",
+    "Understanding of what a classification model does (no deep math required)"
+  ],
+  "learning_outcomes": [
+    "Create a minimal Python project using pyproject.toml",
+    "Train a scikit‑learn model programmatically",
+    "Expose model predictions through FastAPI",
+    "Write type‑annotated, testable code",
+    "Run the service locally and execute automated tests"
+  ],
+  "repo_layout": [
+    "{'root': ['pyproject.toml', 'README.md'], 'src': ['model.py', 'api.py', 'main.py'], 'tests': ['test_model.py', 'test_api.py']}",
+    "src/__init__.py",
+    "tests/__init__.py"
+  ],
+  "stack": [
+    {
+      "name": "Python",
+      "version": ">=3.12",
+      "purpose": "Core language"
+    },
+    {
+      "name": "scikit-learn",
+      "version": ">=1.5.0",
+      "purpose": "Train the logistic‑regression classifier"
+    },
+    {
+      "name": "pandas",
+      "version": ">=2.2.2",
+      "purpose": "Handle tabular training data"
+    },
+    {
+      "name": "FastAPI",
+      "version": ">=0.111.0",
+      "purpose": "Serve the model via HTTP"
+    },
+    {
+      "name": "uvicorn[standard]",
+      "version": ">=0.30.0",
+      "purpose": "ASGI server for FastAPI"
+    },
+    {
+      "name": "pydantic",
+      "version": ">=2.7.0",
+      "purpose": "Data validation for request payloads"
+    },
+    {
+      "name": "pytest",
+      "version": ">=8.2.0",
+      "purpose": "Run unit and integration tests"
+    }
+  ],
+  "best_practices": [
+    "Keep business logic (model training/prediction) separate from the web layer.",
+    "Use type hints everywhere – they improve IDE support and catch bugs early.",
+    "Write small, focused tests for both pure functions and HTTP endpoints.",
+    "Pin dependency versions in pyproject.toml to guarantee reproducible builds.",
+    "Never commit trained model binaries in source control; train at startup for this tiny demo."
+  ],
+  "intro_transcript": "Hey there, welcome to ProjectPalAI! In the next three hours we’ll build a complete, production‑ready text‑classification service from scratch. No Docker, no cloud, just plain Python, scikit‑learn, and FastAPI. By the end of this video you’ll have a runnable API that can predict whether a short sentence is about sports or technology, and you’ll see how to structure the code, type‑annotate it, and test it end‑to‑end. Let’s jump right in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Initialize the repository and declare dependencies",
+      "goal": "Create a clean project skeleton with pyproject.toml and a README.",
+      "bullets": [
+        "Create a new folder called `custom_text_classifier`.",
+        "Run `python -m venv .venv && source .venv/bin/activate`.",
+        "Create `pyproject.toml` with pinned dependencies.",
+        "Add a short `README.md` describing the project."
+      ],
+      "speaker_notes": "First, open your terminal and make a new directory for the tutorial. We’ll use a virtual environment so our dependencies stay isolated. Inside the folder we create a `pyproject.toml`. This file tells modern Python tools – like pip and build – what our project is called, which Python version we need, and which libraries we depend on. Notice we pin each library with a minimum version; that guarantees that anyone who clones the repo will get a compatible set of packages. After that we add a tiny README so future visitors know what the repo does. That’s all for step one – a solid foundation to build on.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "README.md"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Create the model module and train a simple classifier",
+      "goal": "Write `src/model.py` that trains a logistic‑regression model on example data.",
+      "bullets": [
+        "Import pandas, scikit‑learn’s LogisticRegression, and typing utilities.",
+        "Define a small DataFrame with example sentences and labels.",
+        "Vectorize the text using `CountVectorizer`.",
+        "Fit a LogisticRegression model and expose a `predict(text: str) -> str` function."
+      ],
+      "speaker_notes": "Now we move into the `src` package. In `model.py` we’ll keep all the machine‑learning logic. First we import the necessary libraries – pandas for our tiny dataset, CountVectorizer to turn text into numbers, and LogisticRegression as the classifier. We define a list of sentences, each labeled either `sports` or `technology`. After vectorizing the text we fit the model. The key part is the `predict` function: it takes a raw string, runs it through the same vectorizer, and returns the predicted label. By keeping everything in one module we make it easy to import from the API later, and we also keep the training code deterministic – every time the module loads it will train on the same data.",
+      "code": null,
+      "files_touched": [
+        "src/model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Verify the model works locally",
+      "goal": "Run a quick script that imports `model.predict` and prints a prediction.",
+      "bullets": [
+        "Create a temporary script `run_demo.py` in the project root.",
+        "Call `predict` with a sample sentence and print the result.",
+        "Run the script to see the output."
+      ],
+      "speaker_notes": "Before we add any web layer, let’s make sure our model actually works. I’ll create a tiny script called `run_demo.py` that imports the `predict` function, feeds it a sentence like “The new GPU architecture is impressive”, and prints the label. When you run `python run_demo.py` you should see `technology`. If you get `sports` for a sports‑related sentence, you know the model is behaving as expected. This checkpoint saves us from debugging the API later when the problem might actually be in the model itself.",
+      "code": null,
+      "files_touched": [
+        "run_demo.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Build the FastAPI layer",
+      "goal": "Write `src/api.py` that defines request/response models and a `/predict` endpoint.",
+      "bullets": [
+        "Import FastAPI, pydantic's BaseModel, and the `predict` function from `model`.",
+        "Create a `PredictionRequest` class with a single `text: str` field.",
+        "Create a `PredictionResponse` class with a `label: str` field.",
+        "Instantiate a FastAPI app and add a POST `/predict` route that returns the model’s prediction."
+      ],
+      "speaker_notes": "Time to expose our model over HTTP. In `api.py` we import FastAPI and define two Pydantic models – one for the incoming request and one for the outgoing response. FastAPI will automatically validate the JSON payload against `PredictionRequest`, ensuring we always get a string. Inside the route we call `model.predict` and wrap the result in `PredictionResponse`. Because we’re using type hints, IDEs will autocomplete the request schema for us, and FastAPI will generate interactive docs at `/docs` for free. This separation of concerns – model logic in `model.py`, HTTP handling in `api.py` – is a best practice we’ll keep throughout the tutorial.",
+      "code": null,
+      "files_touched": [
+        "src/api.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Add the entry point to launch the server",
+      "goal": "Create `src/main.py` that runs the FastAPI app with Uvicorn.",
+      "bullets": [
+        "Import `uvicorn` and the FastAPI app from `api`.",
+        "Add a `if __name__ == \"__main__\"` block that calls `uvicorn.run`.",
+        "Specify host `0.0.0.0` and port `8000`."
+      ],
+      "speaker_notes": "FastAPI applications are just ASGI callables, but we need a way to start the server. In `main.py` we import the `app` object from `api.py` and call `uvicorn.run`. The `if __name__ == \"__main__\"` guard lets us run the file directly with `python -m src.main` while still allowing import without side effects. We’ll bind to `0.0.0.0` so the server is reachable from any network interface, and we’ll use the default port 8000. After this step you can launch the service with a single command and see the interactive Swagger UI at `http://localhost:8000/docs`.",
+      "code": null,
+      "files_touched": [
+        "src/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Run the API and test it manually",
+      "goal": "Start the server and send a request with `curl` or the Swagger UI.",
+      "bullets": [
+        "Activate the virtual environment.",
+        "Run `python -m src.main`.",
+        "Open a browser to `http://localhost:8000/docs` and try the `/predict` endpoint.",
+        "Alternatively, use `curl -X POST -H \"Content-Type: application/json\" -d '{\"text\":\"I love football\"}' http://localhost:8000/predict`."
+      ],
+      "speaker_notes": "Let’s see the whole thing in action. With the venv active, run `python -m src.main`. You should see Uvicorn start up and listen on port 8000. Open your browser to `http://localhost:8000/docs`; FastAPI automatically builds a beautiful interactive UI where you can paste a JSON payload and hit “Execute”. Try a sports sentence and a tech sentence – you should get the correct labels back. If you prefer the command line, `curl` does the same thing. This manual test confirms that the model, the API layer, and the server are all wired together correctly. That’s our second checkpoint.",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 7,
+      "title": "Write unit tests for the model",
+      "goal": "Create `tests/test_model.py` that checks predictions on known inputs.",
+      "bullets": [
+        "Import `predict` from `src.model`.",
+        "Write two test functions using `pytest` – one for a sports sentence, one for a tech sentence.",
+        "Assert that the returned label matches the expected value."
+      ],
+      "speaker_notes": "Automated testing is crucial, even for tiny projects. In `tests/test_model.py` we import the `predict` function directly and feed it two deterministic sentences. Using `pytest` we assert that the output equals the expected label. Because the model is trained on a fixed dataset each time the module loads, the predictions are deterministic, which makes testing straightforward. Running `pytest -q` should show two passing tests. If they fail, we know something is broken in the model code before we even touch the API.",
+      "code": null,
+      "files_touched": [
+        "tests/test_model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Write integration tests for the FastAPI endpoint",
+      "goal": "Create `tests/test_api.py` that uses FastAPI’s TestClient.",
+      "bullets": [
+        "Import `TestClient` from `fastapi.testclient` and the `app` from `src.api`.",
+        "Write a test that POSTs a JSON payload to `/predict` and checks the response JSON.",
+        "Include both a sports and a technology example."
+      ],
+      "speaker_notes": "Now we test the whole stack – the HTTP layer, request validation, and the model call – without starting a real server. FastAPI ships with a `TestClient` built on `requests`, which lets us call the app as if it were running. In `tests/test_api.py` we instantiate the client, POST a JSON body, and assert that the response status code is 200 and the JSON contains the correct label. This integration test catches mismatches between the request schema and the model output, giving us confidence before we ship the service.",
+      "code": null,
+      "files_touched": [
+        "tests/test_api.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Run the full test suite",
+      "goal": "Execute `pytest` and ensure all tests pass.",
+      "bullets": [
+        "From the project root, run `pytest -q`.",
+        "Observe four passing tests (two unit, two integration).",
+        "Fix any failures before proceeding."
+      ],
+      "speaker_notes": "Time for our third checkpoint. Running `pytest -q` should give you a clean output like `4 passed in 0.12s`. If any test fails, double‑check the import paths, the expected labels, and that the model is being trained on the same data as the tests. A green test suite means our code is reliable, and we can now share the project with confidence.",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 10,
+      "title": "Finalize documentation and run the service",
+      "goal": "Update the README with usage instructions and demonstrate a final run.",
+      "bullets": [
+        "Add a \"How to run\" section to `README.md` with commands to install, start the server, and call the API.",
+        "Commit all changes.",
+        "Run `python -m src.main` one last time and show a curl request."
+      ],
+      "speaker_notes": "We’re almost done! Let’s make the project friendly for other developers. In the README we add a quick‑start guide: create a venv, install dependencies with `pip install -e .`, start the server, and test it with `curl`. After updating the file, run the server one more time to demonstrate the full flow from start to prediction. That’s the final product – a clean, test‑covered, type‑annotated FastAPI service that you can extend with more data or a different model whenever you like.",
+      "code": null,
+      "files_touched": [
+        "README.md"
+      ],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "Congratulations! You just built a full‑stack machine‑learning microservice from scratch, using only modern Python tools. You saw how to structure a project, train a model, expose it via FastAPI, and protect it with unit and integration tests. The code lives in a tidy package, the dependencies are pinned, and the README now guides anyone else to run it. From here you can experiment with larger datasets, swap out LogisticRegression for a transformer model, or containerize the app for deployment. Thanks for watching, and happy coding!",
+  "final_project_code": "# --- pyproject.toml ---\n[project]\nname = \"custom_text_classifier\"\nversion = \"0.1.0\"\ndescription = \"A tiny FastAPI service that serves a custom scikit‑learn text classification model.\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"fastapi>=0.111.0\",\n    \"uvicorn[standard]>=0.30.0\",\n    \"scikit-learn>=1.5.0\",\n    \"pandas>=2.2.2\",\n    \"pydantic>=2.7.0\"\n]\n\n[build-system]\nrequires = [\"setuptools>=73.0\"]\nbuild-backend = \"setuptools.build_meta\"\n\n# --- README.md ---\n# Custom Text Classification Service\n\nThis repository contains a minimal example of a **custom text classification** model built with **scikit‑learn** and served via **FastAPI**.\n\n## Features\n- Trains a logistic‑regression classifier on a few hard‑coded examples.\n- Exposes a `/predict` endpoint that accepts JSON `{ \"text\": \"...\" }` and returns `{ \"label\": \"sports\" | \"technology\" }`.\n- Fully type‑annotated Python code.\n- Unit tests for the model and integration tests for the API using `pytest`.\n\n## Quick‑start\n```bash\n# 1. Create a virtual environment\npython -m venv .venv && source .venv/bin/activate\n\n# 2. Install the project in editable mode\npip install -e .\n\n# 3. Run the server\npython -m src.main\n```\nThe API will be available at `http://localhost:8000`. Open `http://localhost:8000/docs` for interactive documentation.\n\n## Test the endpoint\n```bash\ncurl -X POST -H \"Content-Type: application/json\" \\\n    -d '{\"text\": \"I love football\"}' \\\n    http://localhost:8000/predict\n```\nExpected response:\n```json\n{ \"label\": \"sports\" }\n```\n\n## Running the test suite\n```bash\npytest -q\n```\nAll tests should pass.\n\n---\n# --- src/model.py ---\n\"\"\"Model module – trains a simple logistic‑regression classifier.\n\nThe model is trained at import time so that the `predict` function can be used\nwithout any additional setup.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport pandas as pd\nfrom sklearn.feature_extraction.text import CountVectorizer\nfrom sklearn.linear_model import LogisticRegression\nfrom typing import List\n\n# --- Training data ----------------------------------------------------------\n_DATA: List[tuple[str, str]] = [\n    (\"The team scored a last‑minute goal\", \"sports\"),\n    (\"The championship match was thrilling\", \"sports\"),\n    (\"A new GPU architecture was announced\", \"technology\"),\n    (\"Quantum computing is the future of tech\", \"technology\"),\n]\n\n_df = pd.DataFrame(_DATA, columns=[\"text\", \"label\"])\n\n# Vectorizer converts raw text to a bag‑of‑words matrix.\n_vectorizer = CountVectorizer()\nX = _vectorizer.fit_transform(_df[\"text\"])\n_y = _df[\"label\"]\n\n# Simple logistic regression classifier.\n_classifier = LogisticRegression()\n_classifier.fit(X, _y)\n\n\ndef predict(text: str) -> str:\n    \"\"\"Return the predicted label for *text*.\n\n    Parameters\n    ----------\n    text: str\n        Raw input sentence.\n\n    Returns\n    -------\n    str\n        Predicted label – either ``\"sports\"`` or ``\"technology\"``.\n    \"\"\"\n    vec = _vectorizer.transform([text])\n    return _classifier.predict(vec)[0]\n\n---\n# --- src/api.py ---\n\"\"\"FastAPI layer – defines request/response models and the `/predict` endpoint.\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom fastapi import FastAPI\nfrom pydantic import BaseModel\nfrom .model import predict\n\napp = FastAPI(title=\"Custom Text Classifier\")\n\n\nclass PredictionRequest(BaseModel):\n    text: str\n\n\nclass PredictionResponse(BaseModel):\n    label: str\n\n\n@app.post(\"/predict\", response_model=PredictionResponse)\ndef get_prediction(request: PredictionRequest) -> PredictionResponse:\n    \"\"\"Return the model's prediction for the supplied text.\"\"\"\n    label = predict(request.text)\n    return PredictionResponse(label=label)\n\n---\n# --- src/main.py ---\n\"\"\"Entry point to launch the FastAPI application with Uvicorn.\"\"\"\n\nfrom __future__ import annotations\n\nimport uvicorn\nfrom .api import app\n\nif __name__ == \"__main__\":\n    uvicorn.run(app, host=\"0.0.0.0\", port=8000)\n\n---\n# --- tests/test_model.py ---\n\"\"\"Unit tests for the model module.\"\"\"\n\nfrom src.model import predict\n\n\ndef test_predict_sports() -> None:\n    assert predict(\"The player scored a hat‑trick\") == \"sports\"\n\n\ndef test_predict_technology() -> None:\n    assert predict(\"The new AI chip outperforms the previous generation\") == \"technology\"\n\n---\n# --- tests/test_api.py ---\n\"\"\"Integration tests for the FastAPI endpoint using TestClient.\"\"\"\n\nfrom fastapi.testclient import TestClient\nfrom src.api import app\n\nclient = TestClient(app)\n\n\ndef test_api_predict_sports() -> None:\n    response = client.post(\"/predict\", json={\"text\": \"The referee blew the whistle\"})\n    assert response.status_code == 200\n    assert response.json() == {\"label\": \"sports\"}\n\n\ndef test_api_predict_technology() -> None:\n    response = client.post(\"/predict\", json={\"text\": \"The latest smartphone has a foldable screen\"})\n    assert response.status_code == 200\n    assert response.json() == {\"label\": \"technology\"}\n\n---\n# --- run_demo.py ---\n\"\"\"Quick script to demonstrate the model prediction without the API.\"\"\"\n\nfrom src.model import predict\n\nif __name__ == \"__main__\":\n    example = \"Quantum computers can solve certain problems faster\"\n    print(f\"Input: {example}\\nPrediction: {predict(example)}\")\n\n---\n# --- .gitignore ---\n__pycache__/\n*.pyc\n.venv/\n.env\n\n---\n# --- tests/__init__.py ---\n# (empty – makes the tests directory a package)\n\n---\n# --- src/__init__.py ---\n# (empty – makes src a package)\n",
+  "how_to_run": "```bash\n# 1. Clone the repository\ngit clone <repo-url>\ncd custom_text_classifier\n\n# 2. Create and activate a virtual environment\npython -m venv .venv\nsource .venv/bin/activate   # on Windows use `.venv\\Scripts\\activate`\n\n# 3. Install the project in editable mode\npip install -e .\n\n# 4. Run the FastAPI server\npython -m src.main\n```\nThe service will be reachable at `http://localhost:8000`. Open `http://localhost:8000/docs` for interactive documentation or use `curl` as shown in the README.\n",
+  "challenges": [
+    {
+      "title": "Persist the trained model to disk",
+      "description": "Right now the model is trained every time the module is imported, which is fine for a demo but inefficient for production. Add functionality to save the trained model to a file and load it on subsequent runs.",
+      "build_process": "1. Install `joblib` (`pip install joblib>=1.4.0`).\n2. In `src/model.py` after training, call `joblib.dump` to write the classifier and vectorizer to `model.joblib`.\n3. Modify the module to first check for the existence of `model.joblib`; if present, load it with `joblib.load` instead of retraining.\n4. Update the import in `src/api.py` if needed.\n5. Write a new test in `tests/test_model.py` that ensures loading from disk produces the same predictions.",
+      "solution_code": "# --- src/model.py (updated) ---\n\"\"\"Model module with persistence using joblib.\"\"\"\n\nfrom __future__ import annotations\n\nimport os\nfrom pathlib import Path\nimport pandas as pd\nfrom sklearn.feature_extraction.text import CountVectorizer\nfrom sklearn.linear_model import LogisticRegression\nimport joblib\nfrom typing import List\n\n_MODEL_PATH = Path(__file__).with_name(\"model.joblib\")\n\n_DATA: List[tuple[str, str]] = [\n    (\"The team scored a last‑minute goal\", \"sports\"),\n    (\"The championship match was thrilling\", \"sports\"),\n    (\"A new GPU architecture was announced\", \"technology\"),\n    (\"Quantum computing is the future of tech\", \"technology\"),\n]\n\n_df = pd.DataFrame(_DATA, columns=[\"text\", \"label\"])\n\nif _MODEL_PATH.exists():\n    _vectorizer, _classifier = joblib.load(_MODEL_PATH)\nelse:\n    _vectorizer = CountVectorizer()\n    X = _vectorizer.fit_transform(_df[\"text\"])\n    _classifier = LogisticRegression()\n    _classifier.fit(X, _df[\"label\"])\n    joblib.dump((_vectorizer, _classifier), _MODEL_PATH)\n\n\ndef predict(text: str) -> str:\n    vec = _vectorizer.transform([text])\n    return _classifier.predict(vec)[0]\n",
+      "solution_walkthrough": "We first import `os`, `Path`, and `joblib`. The constant `_MODEL_PATH` points to a sibling file named `model.joblib`. When the module loads we check whether that file already exists. If it does, we simply `joblib.load` a tuple containing the previously saved `CountVectorizer` and `LogisticRegression` instances. If the file is missing, we fall back to the original training routine, then immediately `joblib.dump` the two objects for future runs. The public `predict` function stays unchanged, so the rest of the codebase (API and tests) does not need any modifications. This change makes the startup fast after the first run and demonstrates a common production pattern for scikit‑learn models.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": {
+    "passed": true,
+    "score": 100.0,
+    "reviews": [
+      {
+        "agent": "structure",
+        "passed": true,
+        "summary": "Structure OK",
+        "findings": []
+      },
+      {
+        "agent": "practices",
+        "passed": true,
+        "summary": "Practices OK",
+        "findings": []
+      },
+      {
+        "agent": "code",
+        "passed": false,
+        "summary": "1 code finding(s), 1 error(s)",
+        "findings": [
+          {
+            "agent": "code",
+            "severity": "info",
+            "code": "UNKNOWN",
+            "message": "agent='code' severity='error' code='TOO_FEW_CODE_STEPS' message='Only 0/10 steps include code' location='steps' suggestion='Most steps should ship code into the project'",
+            "location": "",
+            "suggestion": ""
+          }
+        ]
+      }
+    ],
+    "repair": {
+      "applied": true,
+      "summary": "Applied 2 deterministic fix(es)",
+      "actions": [
+        {
+          "action": "add_repo_layout_entry",
+          "location": "repo_layout",
+          "detail": "src/__init__.py"
+        },
+        {
+          "action": "add_repo_layout_entry",
+          "location": "repo_layout",
+          "detail": "tests/__init__.py"
+        }
+      ],
+      "remaining_issues": []
+    },
+    "findings_count": 1,
+    "error_count": 0,
+    "warning_count": 0
+  }
+}

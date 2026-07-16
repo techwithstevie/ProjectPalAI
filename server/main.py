@@ -1,7 +1,8 @@
 """
 ProjectPalAI API — YouTube-style project tutorial generator.
 
-No charts, no modules. Topic + difficulty + size → linear build steps.
+Topic + difficulty + size → linear build steps, then quality agents
+review structure / best practices / code and auto-repair issues.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from generator import generate_tutorial
 from schema import ProjectTutorial
 from pptx_export import export_tutorial_to_pptx
 
-app = FastAPI(title="ProjectPalAI", version="3.0.0")
+app = FastAPI(title="ProjectPalAI", version="3.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,8 +46,22 @@ class GenerateRequest(BaseModel):
     topic: str = Field(..., min_length=2)
     difficulty: Difficulty = "intermediate"
     size: ProjectSize = "medium"
+    # Legacy aliases
     audience_level: Difficulty | None = None
     project_size: ProjectSize | None = None
+    # Quality agents
+    run_agents: bool = Field(
+        default=True,
+        description="Run structure / practices / code review + repair after generation",
+    )
+    use_llm_review: bool = Field(
+        default=True,
+        description="Use LLM for deep review (rules always run)",
+    )
+    use_llm_repair: bool = Field(
+        default=True,
+        description="Allow LLM full repair when deterministic fixes are not enough",
+    )
 
 
 def _resolve_params(req: GenerateRequest) -> tuple[str, Difficulty, ProjectSize]:
@@ -76,7 +91,13 @@ def _sse(data: dict) -> str:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "product": "ProjectPalAI", "mode": "project-tutorial"}
+    return {
+        "ok": True,
+        "product": "ProjectPalAI",
+        "mode": "project-tutorial",
+        "agents": ["structure", "practices", "code", "repair"],
+        "version": "3.1.0",
+    }
 
 
 @app.post("/api/generate")
@@ -86,6 +107,9 @@ def generate(req: GenerateRequest):
         topic=topic,
         difficulty=difficulty,
         size=size,
+        run_agents=req.run_agents,
+        use_llm_review=req.use_llm_review,
+        use_llm_repair=req.use_llm_repair,
     )
     return _save(tutorial)
 
@@ -107,6 +131,9 @@ def generate_stream(req: GenerateRequest):
                     difficulty=difficulty,
                     size=size,
                     progress_callback=on_progress,
+                    run_agents=req.run_agents,
+                    use_llm_review=req.use_llm_review,
+                    use_llm_repair=req.use_llm_repair,
                 )
                 tutorial = _save(tutorial)
                 q.put(("complete", tutorial.model_dump()))
@@ -205,6 +232,7 @@ def list_tutorials():
     ):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            qr = data.get("quality_report") or {}
             items.append(
                 {
                     "id": data.get("id") or path.stem,
@@ -212,11 +240,33 @@ def list_tutorials():
                     "difficulty": data.get("difficulty"),
                     "size": data.get("size"),
                     "steps": len(data.get("steps") or []),
+                    "quality_score": qr.get("score"),
+                    "quality_passed": qr.get("passed"),
                 }
             )
         except Exception:
             continue
     return {"tutorials": items}
+
+
+@app.post("/api/tutorials/{tutorial_id}/review")
+def re_run_agents(tutorial_id: str, use_llm_review: bool = True, use_llm_repair: bool = True):
+    """Re-run quality agents on an existing saved tutorial and overwrite it."""
+    from agents.pipeline import run_quality_pipeline
+
+    tutorial = _load(tutorial_id)
+    fixed, report = run_quality_pipeline(
+        tutorial,
+        use_llm_review=use_llm_review,
+        use_llm_repair=use_llm_repair,
+    )
+    try:
+        fixed.quality_report = report.model_dump()
+    except Exception:
+        fixed.quality_report = report.model_dump() if hasattr(report, "model_dump") else None
+    if not fixed.id:
+        fixed.id = tutorial_id
+    return _save(fixed)
 
 
 if __name__ == "__main__":
