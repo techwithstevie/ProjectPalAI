@@ -1,0 +1,294 @@
+{
+  "id": "62ed1afc-206d-4cc4-80a2-25f6d9fa1638",
+  "title": "Amazon Product Finder – A Local Python Agent",
+  "tagline": "Build a tiny command‑line agent that searches Amazon and returns product titles and URLs.",
+  "description": "In this tutorial you will create a small, beginner‑friendly Python project that queries Amazon’s public search page, parses the HTML, and prints a short list of matching products. You will learn how to structure a modern Python package, write a CLI with Typer, scrape safely with Requests and BeautifulSoup, and add a couple of unit tests.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "There is no ready‑made local tool that lets a developer quickly look up Amazon products from the terminal. Existing solutions require cloud APIs or paid credentials. The goal of this tutorial is to build a lightweight, self‑contained agent that performs a simple search and returns human‑readable results.",
+  "end_state": "At the end of the tutorial you will have a pip‑installable package `amazon_finder` with a `amazon-finder` console command. Running `amazon-finder \"wireless headphones\"` will display the first ten product titles and URLs from Amazon’s search results.",
+  "prerequisites": [
+    "Basic Python knowledge (variables, functions, classes).",
+    "Familiarity with the command line (creating virtual environments, running scripts).",
+    "A recent version of Python (>=3.12) installed."
+  ],
+  "learning_outcomes": [
+    "Create a modern Python project with a `pyproject.toml` file.",
+    "Write a simple CLI using Typer.",
+    "Perform HTTP GET requests with Requests and parse HTML with BeautifulSoup.",
+    "Structure code into reusable modules and add type hints.",
+    "Write unit tests with pytest."
+  ],
+  "repo_layout": [
+    "{'root_files': ['pyproject.toml', 'README.md'], 'src': ['src/amazon_finder/__init__.py', 'src/amazon_finder/main.py', 'src/amazon_finder/search.py'], 'tests': ['tests/test_search.py']}"
+  ],
+  "stack": [
+    {
+      "name": "python",
+      "version": ">=3.12",
+      "purpose": "runtime language"
+    },
+    {
+      "name": "requests",
+      "version": ">=2.31",
+      "purpose": "perform HTTP GET requests"
+    },
+    {
+      "name": "beautifulsoup4",
+      "version": ">=4.12",
+      "purpose": "parse Amazon HTML pages"
+    },
+    {
+      "name": "typer",
+      "version": ">=0.9",
+      "purpose": "build a clean command‑line interface"
+    },
+    {
+      "name": "pytest",
+      "version": ">=7.4",
+      "purpose": "run unit tests"
+    }
+  ],
+  "best_practices": [
+    "Pin dependency versions in `pyproject.toml` to avoid breaking changes.",
+    "Add a custom `User‑Agent` header when scraping to be polite to Amazon’s servers.",
+    "Keep network code isolated from CLI logic – makes testing easier.",
+    "Use `dataclasses` for simple data structures (e.g., a `Product`).",
+    "Write type‑annotated functions and enable `mypy` in CI (not covered here but recommended)."
+  ],
+  "intro_transcript": "Hey everyone! Welcome back to ProjectPalAI. Today we’re going to build a tiny but useful Python agent that can search Amazon right from your terminal. No cloud keys, no paid APIs – just a few lines of code that fetch the public search page, scrape the product titles, and print them out. By the end of this 3‑hour tutorial you’ll have a pip‑installable package called `amazon_finder` with a `amazon-finder` command you can run anywhere. Let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Create the project skeleton",
+      "goal": "Set up a fresh Git‑style folder with `pyproject.toml`, `README.md`, and the `src/` package directory.",
+      "bullets": [
+        "Create a new folder called `amazon_finder_tutorial`.",
+        "Run `python -m venv .venv` and activate it.",
+        "Create the files listed in `repo_layout`."
+      ],
+      "speaker_notes": "First things first – open your terminal and make a new directory for the tutorial. We'll call it `amazon_finder_tutorial`. Inside we’ll create a virtual environment so our dependencies stay isolated. Then we’ll add the `pyproject.toml` file that tells Poetry (or any PEP‑517 build backend) what we need, a short `README.md` that explains the project, and the `src/` folder where our package lives. This is the standard modern layout you’ll see in most open‑source Python projects today.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "README.md",
+        "src/amazon_finder/__init__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Write `pyproject.toml`",
+      "goal": "Declare the build system, Python version, and runtime dependencies.",
+      "bullets": [
+        "Specify `build-backend = \"setuptools.build_meta\"`.",
+        "Add `requests`, `beautifulsoup4`, and `typer` with version pins.",
+        "Set `python_requires = \">=3.12\"`."
+      ],
+      "speaker_notes": "Open `pyproject.toml` and paste the minimal configuration you see on the screen. We’re using the built‑in setuptools backend because it works everywhere, and we pin each third‑party library to a known good version. Notice the `python_requires` field – that tells pip we need at least Python 3.12. Save the file and run `pip install -e .` to install the package in editable mode.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_2.py",
+        "code": "# pyproject.toml\n[build-system]\nrequires = [\"setuptools>=68.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"amazon_finder\"\nversion = \"0.1.0\"\ndescription = \"A tiny CLI that searches Amazon and prints product titles.\"\nreadme = \"README.md\"\nrequires-python = \">=3.12\"\nlicense = {text = \"MIT\"}\n\n[project.dependencies]\nrequests = \">=2.31\"\nbeautifulsoup4 = \">=4.12\"\ntyper = \">=0.9\"\n\n[project.scripts]\namazon-finder = \"amazon_finder.main:app\"",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "pyproject.toml"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Add a minimal package initializer",
+      "goal": "Make `src/amazon_finder` a proper Python package.",
+      "bullets": [
+        "Create an empty `__init__.py` that exports the public API."
+      ],
+      "speaker_notes": "The `__init__.py` file can be tiny – just a docstring and an `__all__` list so that tools know what we intend to expose. This also tells Python that `src/amazon_finder` is a package, which is required for the import system to work.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_3.py",
+        "code": "# src/amazon_finder/__init__.py\n\"\"\"Amazon Finder package – provides a CLI to search Amazon products.\"\"\"\n\n__all__ = [\"main\", \"search\"]",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/amazon_finder/__init__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 4,
+      "title": "Create the CLI with Typer",
+      "goal": "Expose a `amazon-finder` command that accepts a search query.",
+      "bullets": [
+        "Import `typer` and create an `app` instance.",
+        "Define a `search` command that receives a string argument.",
+        "Print a friendly welcome message."
+      ],
+      "speaker_notes": "Now we’ll build the command‑line interface. Typer makes this a breeze – it’s built on top of Click but adds automatic type hints and nice help messages. We’ll create an `app` object, add a single command called `search`, and forward the user’s query to a function we’ll write later. Run `amazon-finder \"wireless headphones\"` after we finish the next step and you’ll see a placeholder output.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_4.py",
+        "code": "# src/amazon_finder/main.py\nimport typer\nfrom .search import find_products\n\napp = typer.Typer(help=\"Search Amazon from the terminal.\")\n\n@app.command()\ndef search(query: str = typer.Argument(..., help=\"What you want to find on Amazon\")):\n    \"\"\"CLI entry point – forwards the query to the scraper and prints results.\"\"\"\n    typer.echo(f\"🔎 Searching Amazon for: {query}\\n\")\n    products = find_products(query)\n    if not products:\n        typer.echo(\"❌ No products found. Try a different query.\")\n        raise typer.Exit(code=1)\n    for idx, prod in enumerate(products, start=1):\n        typer.echo(f\"{idx}. {prod.title}\\n   {prod.url}\\n\")\n\nif __name__ == \"__main__\":\n    app()\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/amazon_finder/main.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 5,
+      "title": "Define a simple data model",
+      "goal": "Create a `Product` dataclass to hold title and URL.",
+      "bullets": [
+        "Use `@dataclass` from the standard library.",
+        "Add `title: str` and `url: str` fields."
+      ],
+      "speaker_notes": "Having a small, typed container for each product makes the rest of the code cleaner. We’ll put the dataclass in `search.py` because it belongs to the scraping layer. This also demonstrates how to use type hints and the `dataclasses` module, both of which are part of modern Python.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_5.py",
+        "code": "# src/amazon_finder/search.py (add at top)\nfrom __future__ import annotations\n\nimport requests\nfrom bs4 import BeautifulSoup\nfrom dataclasses import dataclass\nfrom typing import List\n\n@dataclass\nclass Product:\n    \"\"\"Simple container for an Amazon product result.\"\"\"\n    title: str\n    url: str\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/amazon_finder/search.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Implement the scraper function",
+      "goal": "Write `find_products(query)` that returns a list of `Product` objects.",
+      "bullets": [
+        "Build the Amazon search URL (`https://www.amazon.com/s?k={query}`) with URL‑encoding.",
+        "Send a GET request with a custom `User‑Agent` header.",
+        "Parse the HTML with BeautifulSoup, locate product containers, extract title and link.",
+        "Return up to 10 products."
+      ],
+      "speaker_notes": "Here’s the heart of the project. We construct the search URL, add a polite `User‑Agent` so Amazon doesn’t block us immediately, and then parse the response. Amazon’s HTML is a bit noisy, but each product lives inside a `<div>` with `data-component-type=\"s-search-result\"`. Inside that div we can find an `<h2>` with an `<a>` tag – the `href` gives the relative link, and the text gives the title. We’ll slice the results to the first ten items to keep the output short. Remember, this is for learning – for production you’d want a proper API key or a more robust scraper.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_6.py",
+        "code": "# src/amazon_finder/search.py (continue)\nimport urllib.parse\n\nHEADERS = {\n    \"User-Agent\": (\n        \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) \"\n        \"AppleWebKit/537.36 (KHTML, like Gecko) \"\n        \"Chrome/124.0.0.0 Safari/537.36\"\n    )\n}\n\ndef _build_search_url(query: str) -> str:\n    encoded = urllib.parse.quote_plus(query)\n    return f\"https://www.amazon.com/s?k={encoded}\"\n\ndef find_products(query: str, max_results: int = 10) -> List[Product]:\n    \"\"\"Fetch Amazon search results and return a list of :class:`Product`.\n\n    Parameters\n    ----------\n    query: str\n        The search term entered by the user.\n    max_results: int, optional\n        How many products to return (default 10).\n    \"\"\"\n    url = _build_search_url(query)\n    response = requests.get(url, headers=HEADERS, timeout=10)\n    response.raise_for_status()\n    soup = BeautifulSoup(response.text, \"html.parser\")\n    results: List[Product] = []\n    for div in soup.select('div[data-component-type=\"s-search-result\"]'):\n        # Title\n        title_tag = div.select_one('h2 a span')\n        if not title_tag:\n            continue\n        title = title_tag.get_text(strip=True)\n        # URL – Amazon uses relative links\n        link_tag = div.select_one('h2 a')\n        if not link_tag or not link_tag.get('href'):\n            continue\n        rel_url = link_tag['href']\n        full_url = urllib.parse.urljoin('https://www.amazon.com', rel_url)\n        results.append(Product(title=title, url=full_url))\n        if len(results) >= max_results:\n            break\n    return results\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/amazon_finder/search.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 7,
+      "title": "Write the first unit test",
+      "goal": "Test that `find_products` correctly parses a saved HTML fixture.",
+      "bullets": [
+        "Create a `tests/fixtures/sample.html` file with a tiny snippet of Amazon search HTML.",
+        "Load the fixture in the test, monkeypatch `requests.get` to return it.",
+        "Assert that the returned list contains the expected titles and URLs."
+      ],
+      "speaker_notes": "Testing web‑scraping code can be flaky if you hit the live site, so we’ll use a static HTML fixture. Pytest’s `monkeypatch` fixture lets us replace `requests.get` with a fake function that returns our sample HTML. This way the test runs instantly and deterministically. We’ll place the fixture in a `tests/fixtures` folder – keep it tiny, just enough to cover the selectors we wrote earlier.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_7.py",
+        "code": "# tests/test_search.py\nimport pathlib\nfrom unittest.mock import Mock\n\nimport pytest\nfrom amazon_finder.search import find_products, Product\n\nFIXTURE_PATH = pathlib.Path(__file__).parent / \"fixtures\" / \"sample.html\"\n\ndef _fake_get(url, headers=None, timeout=None):\n    # Return an object that mimics `requests.Response`\n    mock_resp = Mock()\n    mock_resp.status_code = 200\n    mock_resp.text = FIXTURE_PATH.read_text(encoding=\"utf-8\")\n    mock_resp.raise_for_status = Mock()\n    return mock_resp\n\ndef test_find_products_parses_fixture(monkeypatch):\n    monkeypatch.setattr(\"requests.get\", _fake_get)\n    products = find_products(\"dummy\")\n    assert len(products) == 2\n    assert products[0].title == \"Echo Dot (5th Gen) | Smart speaker with Alexa\"\n    assert products[0].url.startswith(\"https://www.amazon.com/dp/B09B8\")\n    assert isinstance(products[1], Product)\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "tests/test_search.py",
+        "tests/fixtures/sample.html"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 8,
+      "title": "Add the HTML fixture file",
+      "goal": "Provide a minimal but realistic snippet of Amazon search results for the test.",
+      "bullets": [
+        "Create `tests/fixtures/sample.html` with two product entries.",
+        "Make sure the markup matches the selectors used in `search.py`."
+      ],
+      "speaker_notes": "Here’s the tiny HTML we’ll use. It contains two `<div>` elements with the `data-component-type=\"s-search-result\"` attribute, each holding an `<h2>` with a link and a `<span>` for the title. This mirrors the real Amazon page closely enough for our selectors to work, but it’s tiny so the test runs instantly.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_8.py",
+        "code": "# tests/fixtures/sample.html\n<div data-component-type=\"s-search-result\" id=\"result_1\">\n  <h2>\n    <a href=\"/dp/B09B8K5R9L\">\n      <span>Echo Dot (5th Gen) | Smart speaker with Alexa</span>\n    </a>\n  </h2>\n</div>\n<div data-component-type=\"s-search-result\" id=\"result_2\">\n  <h2>\n    <a href=\"/dp/B07FZ8S74R\">\n      <span>Fire TV Stick 4K with Alexa Voice Remote</span>\n    </a>\n  </h2>\n</div>\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "tests/fixtures/sample.html"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Run the test suite and fix bugs",
+      "goal": "Execute `pytest` and ensure the scraper passes the fixture test.",
+      "bullets": [
+        "Run `pytest -q`.",
+        "If the test fails, check selector strings and URL joining logic.",
+        "Add a small `except Exception` block in `find_products` to surface errors nicely."
+      ],
+      "speaker_notes": "Now let’s run the tests. In the terminal type `pytest -q`. You should see one passing test. If something goes wrong – maybe the CSS selector changed – adjust the selector in `search.py`. Also we’ll wrap the whole request/parse block in a try‑except that re‑raises a `RuntimeError` with a helpful message; this keeps the CLI clean and gives users a clue what went wrong.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_9.py",
+        "code": "# src/amazon_finder/search.py (add at top of find_products)\n    try:\n        url = _build_search_url(query)\n        response = requests.get(url, headers=HEADERS, timeout=10)\n        response.raise_for_status()\n        soup = BeautifulSoup(response.text, \"html.parser\")\n        # ... existing parsing logic ...\n    except Exception as exc:\n        raise RuntimeError(f\"Failed to fetch Amazon results: {exc}\") from exc\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/amazon_finder/search.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 10,
+      "title": "Final polish and run the CLI",
+      "goal": "Install the package, try a real search, and wrap up.",
+      "bullets": [
+        "Run `pip install -e .` again to pick up any changes.",
+        "Execute `amazon-finder \"mechanical keyboard\"`.",
+        "Observe the nicely formatted list of product titles and URLs.",
+        "Update the README with usage instructions."
+      ],
+      "speaker_notes": "Everything is wired up! Install the package in editable mode, then run the command we defined in `pyproject.toml`. You should see a short list of the first ten products that match your query. If you get a CAPTCHA or a block from Amazon, just know that this is a simple demo – for heavy usage you’d need to respect robots.txt or use the official Product Advertising API. Finally, we’ll add a quick usage section to the README so future visitors know how to run the tool.",
+      "code": null,
+      "files_touched": [
+        "README.md"
+      ],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "Congratulations! You just built a fully functional, pip‑installable Python agent that searches Amazon from the command line. We covered project scaffolding, a clean CLI with Typer, safe HTTP requests, HTML parsing with BeautifulSoup, a tiny data model, and unit testing with pytest. Feel free to extend the project – maybe add price extraction, pagination, or switch to the official Amazon PA‑API for production use. Thanks for watching, and happy coding!",
+  "final_project_code": "# pyproject.toml\n[build-system]\nrequires = [\"setuptools>=68.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"amazon_finder\"\nversion = \"0.1.0\"\ndescription = \"A tiny CLI that searches Amazon and prints product titles.\"\nreadme = \"README.md\"\nrequires-python = \">=3.12\"\nlicense = {text = \"MIT\"}\n\n[project.dependencies]\nrequests = \">=2.31\"\nbeautifulsoup4 = \">=4.12\"\ntyper = \">=0.9\"\n\n[project.scripts]\namazon-finder = \"amazon_finder.main:app\"\n\n# --- README.md ---\n# Amazon Product Finder\n\nA small Python CLI that searches Amazon and prints the first few product titles and URLs.\n\n## Installation\n```bash\npython -m venv .venv\nsource .venv/bin/activate\npip install -e .\n```\n\n## Usage\n```bash\namazon-finder \"wireless headphones\"\n```\n\n## Development\n```bash\npip install -e .[dev]\npytest -q\n```\n\n---\n# src/amazon_finder/__init__.py\n\"\"\"Amazon Finder package – provides a CLI to search Amazon products.\"\"\"\n\n__all__ = [\"main\", \"search\"]\n\n---\n# src/amazon_finder/main.py\nimport typer\nfrom .search import find_products\n\napp = typer.Typer(help=\"Search Amazon from the terminal.\")\n\n@app.command()\ndef search(query: str = typer.Argument(..., help=\"What you want to find on Amazon\")):\n    \"\"\"CLI entry point – forwards the query to the scraper and prints results.\"\"\"\n    typer.echo(f\"🔎 Searching Amazon for: {query}\\n\")\n    products = find_products(query)\n    if not products:\n        typer.echo(\"❌ No products found. Try a different query.\")\n        raise typer.Exit(code=1)\n    for idx, prod in enumerate(products, start=1):\n        typer.echo(f\"{idx}. {prod.title}\\n   {prod.url}\\n\")\n\nif __name__ == \"__main__\":\n    app()\n\n---\n# src/amazon_finder/search.py\nfrom __future__ import annotations\n\nimport urllib.parse\nfrom dataclasses import dataclass\nfrom typing import List\n\nimport requests\nfrom bs4 import BeautifulSoup\n\nHEADERS = {\n    \"User-Agent\": (\n        \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) \"\n        \"AppleWebKit/537.36 (KHTML, like Gecko) \"\n        \"Chrome/124.0.0.0 Safari/537.36\"\n    )\n}\n\n@dataclass\nclass Product:\n    \"\"\"Simple container for an Amazon product result.\"\"\"\n    title: str\n    url: str\n\ndef _build_search_url(query: str) -> str:\n    encoded = urllib.parse.quote_plus(query)\n    return f\"https://www.amazon.com/s?k={encoded}\"\n\ndef find_products(query: str, max_results: int = 10) -> List[Product]:\n    \"\"\"Fetch Amazon search results and return a list of :class:`Product`.\n\n    Parameters\n    ----------\n    query: str\n        The search term entered by the user.\n    max_results: int, optional\n        How many products to return (default 10).\n    \"\"\"\n    try:\n        url = _build_search_url(query)\n        response = requests.get(url, headers=HEADERS, timeout=10)\n        response.raise_for_status()\n        soup = BeautifulSoup(response.text, \"html.parser\")\n        results: List[Product] = []\n        for div in soup.select('div[data-component-type=\"s-search-result\"]'):\n            title_tag = div.select_one('h2 a span')\n            if not title_tag:\n                continue\n            title = title_tag.get_text(strip=True)\n            link_tag = div.select_one('h2 a')\n            if not link_tag or not link_tag.get('href'):\n                continue\n            rel_url = link_tag['href']\n            full_url = urllib.parse.urljoin('https://www.amazon.com', rel_url)\n            results.append(Product(title=title, url=full_url))\n            if len(results) >= max_results:\n                break\n        return results\n    except Exception as exc:\n        raise RuntimeError(f\"Failed to fetch Amazon results: {exc}\") from exc\n\n---\n# tests/test_search.py\nimport pathlib\nfrom unittest.mock import Mock\n\nimport pytest\nfrom amazon_finder.search import find_products, Product\n\nFIXTURE_PATH = pathlib.Path(__file__).parent / \"fixtures\" / \"sample.html\"\n\ndef _fake_get(url, headers=None, timeout=None):\n    mock_resp = Mock()\n    mock_resp.status_code = 200\n    mock_resp.text = FIXTURE_PATH.read_text(encoding=\"utf-8\")\n    mock_resp.raise_for_status = Mock()\n    return mock_resp\n\ndef test_find_products_parses_fixture(monkeypatch):\n    monkeypatch.setattr(\"requests.get\", _fake_get)\n    products = find_products(\"dummy\")\n    assert len(products) == 2\n    assert products[0].title == \"Echo Dot (5th Gen) | Smart speaker with Alexa\"\n    assert products[0].url.startswith(\"https://www.amazon.com/dp/B09B8\")\n    assert isinstance(products[1], Product)\n\n---\n# tests/fixtures/sample.html\n<div data-component-type=\"s-search-result\" id=\"result_1\">\n  <h2>\n    <a href=\"/dp/B09B8K5R9L\">\n      <span>Echo Dot (5th Gen) | Smart speaker with Alexa</span>\n    </a>\n  </h2>\n</div>\n<div data-component-type=\"s-search-result\" id=\"result_2\">\n  <h2>\n    <a href=\"/dp/B07FZ8S74R\">\n      <span>Fire TV Stick 4K with Alexa Voice Remote</span>\n    </a>\n  </h2>\n</div>",
+  "how_to_run": "1. Clone the repository or copy the generated files into a folder.\n2. Open a terminal, navigate to the project root, and create a virtual environment:\n   ```bash\n   python -m venv .venv\n   source .venv/bin/activate   # on Windows use `.venv\\Scripts\\activate`\n   ```\n3. Install the package in editable mode:\n   ```bash\n   pip install -e .\n   ```\n4. Run the test suite to verify everything works:\n   ```bash\n   pytest -q\n   ```\n5. Use the CLI to search Amazon:\n   ```bash\n   amazon-finder \"wireless headphones\"\n   ```\n   The command will print the first ten product titles and URLs.\n",
+  "challenges": [
+    {
+      "title": "Add price extraction",
+      "description": "Extend the scraper to also capture the product's price (if displayed) and show it in the CLI output.",
+      "build_process": "1. Inspect the HTML of a real Amazon search result to find the CSS selector that contains the price (e.g., `span.a-price-whole`).\n2. Update `Product` dataclass to include an optional `price: str` field.\n3. Modify `find_products` to extract the price for each product, handling missing prices gracefully.\n4. Update the CLI loop in `main.py` to display the price next to the title.\n5. Add a new test case with a fixture that includes price markup and assert the price is parsed correctly.",
+      "solution_code": "# src/amazon_finder/search.py (price addition)\n@dataclass\nclass Product:\n    title: str\n    url: str\n    price: str | None = None\n\n# inside find_products loop, after extracting title and url:\nprice_tag = div.select_one('span.a-price-whole')\nprice = price_tag.get_text(strip=True) if price_tag else None\nresults.append(Product(title=title, url=full_url, price=price))\n\n# src/amazon_finder/main.py (display price)\nfor idx, prod in enumerate(products, start=1):\n    price_part = f\" – ${prod.price}\" if prod.price else \"\"\n    typer.echo(f\"{idx}. {prod.title}{price_part}\\n   {prod.url}\\n\")",
+      "solution_walkthrough": "First we added a `price` attribute to the `Product` dataclass, defaulting to `None` for items without a price. In the scraper we look for the `<span class=\"a-price-whole\">` element, which Amazon uses for the integer part of the price. If the selector returns a tag we strip its text; otherwise we keep `price` as `None`. When building the list we pass the price along with title and URL. Finally, the CLI prints the price only when it exists, using a small conditional string. The new test mirrors the HTML structure with a `<span class=\"a-price-whole\">$99</span>` element and asserts that `product.price == \"99\"`.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": null
+}

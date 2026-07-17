@@ -1,0 +1,325 @@
+{
+  "id": "95705606-860c-4213-8249-4e8236f745f0",
+  "title": "LangChain Chat App with FastAPI and Vite React",
+  "tagline": "Build a tiny full‑stack AI chat app from scratch using LangChain, FastAPI, and a Vite‑powered React UI.",
+  "description": "In this tutorial we will create a small but complete full‑stack application. The backend is a FastAPI server that uses LangChain with a fake LLM to echo user messages. The frontend is a modern React app built with Vite that talks to the API. The whole project lives in a single monorepo with a clean layout, type‑hints, and tests.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "You want to experiment with LangChain and see how it can be wired into a web service, but you don’t have a full‑stack template to start from. Building the plumbing yourself each time is tedious.",
+  "end_state": "At the end of the tutorial you will have a runnable monorepo containing:\n- A FastAPI backend exposing `/health` and `/chat` endpoints.\n- A LangChain chain that processes the user message.\n- A React UI that lets a user type a message and see the assistant’s reply.\n- Automated tests for the backend.\n- Clear instructions for running both servers together.",
+  "prerequisites": [
+    "Basic Python knowledge (functions, modules, type hints).",
+    "Familiarity with JavaScript/React fundamentals.",
+    "Node.js (v20+) and npm installed on your machine.",
+    "Python 3.12+ installed."
+  ],
+  "learning_outcomes": [
+    "Set up a modern Python project with `pyproject.toml` and type hints.",
+    "Create a FastAPI service and add CORS middleware.",
+    "Integrate LangChain using a fake LLM for quick iteration.",
+    "Write unit tests with `pytest` and `TestClient`.",
+    "Bootstrap a Vite + React frontend and proxy API calls.",
+    "Run both backend and frontend concurrently in development."
+  ],
+  "repo_layout": [
+    "pyproject.toml",
+    "README.md",
+    "src/",
+    "src/backend/__init__.py",
+    "src/backend/main.py",
+    "src/backend/model.py",
+    "src/frontend/",
+    "src/frontend/index.html",
+    "src/frontend/vite.config.js",
+    "src/frontend/package.json",
+    "src/frontend/src/main.jsx",
+    "src/frontend/src/App.jsx",
+    "src/frontend/src/api.js",
+    "tests/",
+    "tests/test_backend.py",
+    "src/__init__.py",
+    "tests/__init__.py"
+  ],
+  "stack": [
+    {
+      "name": "Python",
+      "version": ">=3.12,<3.13",
+      "purpose": "Core language for the backend and LangChain."
+    },
+    {
+      "name": "FastAPI",
+      "version": ">=0.110.0",
+      "purpose": "Lightweight async web framework for the API."
+    },
+    {
+      "name": "LangChain",
+      "version": ">=0.2.0",
+      "purpose": "Framework to build LLM‑driven chains."
+    },
+    {
+      "name": "Uvicorn",
+      "version": ">=0.27.0",
+      "purpose": "ASGI server to run FastAPI."
+    },
+    {
+      "name": "Vite",
+      "version": "^5.2.0",
+      "purpose": "Fast dev server and bundler for React."
+    },
+    {
+      "name": "React",
+      "version": "^18.2.0",
+      "purpose": "UI library for the frontend."
+    },
+    {
+      "name": "pytest",
+      "version": ">=8.2.0",
+      "purpose": "Testing framework for Python."
+    }
+  ],
+  "best_practices": [
+    "Pin all dependency versions in `pyproject.toml` to avoid surprise breakages.",
+    "Keep the backend pure Python and the frontend pure JavaScript – no mixing of concerns.",
+    "Add CORS middleware early to prevent browser‑side request errors.",
+    "Write at least one test per endpoint before adding new features.",
+    "Use Vite’s proxy feature instead of hard‑coding backend URLs."
+  ],
+  "intro_transcript": "Hey everyone! Welcome back to ProjectPalAI. Today we’re going to build a tiny full‑stack AI chat app from the ground up. We’ll spin up a FastAPI backend that uses LangChain with a fake LLM – no API keys required – and then we’ll create a sleek React UI with Vite that talks to our API. By the end of this 3‑hour tutorial you’ll have a complete monorepo you can run locally, a couple of automated tests, and a solid foundation for any LangChain‑powered web service. Let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Create the repository skeleton",
+      "goal": "Initialize a new git repo, add a `pyproject.toml` and a README.",
+      "bullets": [
+        "Run `git init` and create a clean folder structure.",
+        "Add `pyproject.toml` with pinned dependencies.",
+        "Write a short README that explains the project."
+      ],
+      "speaker_notes": "First things first – open your terminal and create a new folder called `langchain_fastapi_fullstack`. Inside that folder run `git init` so we have version control. Then we’ll add a `pyproject.toml` file – this is the modern way to declare Python dependencies. I’ll copy a minimal configuration that pins FastAPI, Uvicorn, LangChain, Pydantic, and Httpx. After that we create a `README.md` with a one‑sentence description and a table of contents. This step gives us a clean starting point and makes sure anyone cloning the repo knows what they’re looking at.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "README.md"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Add the backend package",
+      "goal": "Create a Python package for the FastAPI service.",
+      "bullets": [
+        "Create `src/backend/__init__.py` (empty).",
+        "Create `src/backend/main.py` with a basic FastAPI app and a health endpoint."
+      ],
+      "speaker_notes": "Now we’ll set up the backend package. Inside `src` we create a folder called `backend` and add an empty `__init__.py` so Python treats it as a package. In `main.py` we import FastAPI, instantiate the app, and expose a simple `/health` route that returns `{ \"status\": \"ok\" }`. This gives us something we can run immediately with `uvicorn src.backend.main:app --reload`. Running it now should show a JSON response at `http://127.0.0.1:8000/health`. If you see `{\"status\":\"ok\"}` you’re good to go.",
+      "code": null,
+      "files_touched": [
+        "src/backend/__init__.py",
+        "src/backend/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Add CORS middleware",
+      "goal": "Allow the React dev server to call the FastAPI API without cross‑origin errors.",
+      "bullets": [
+        "Import `CORSMiddleware` from `fastapi.middleware.cors`.",
+        "Add the middleware with `allow_origins=['*']` for development."
+      ],
+      "speaker_notes": "When we later spin up the React app on a different port, the browser will block requests to our API unless we enable CORS. FastAPI makes this trivial – we import `CORSMiddleware` and add it right after creating the `FastAPI` instance. For now we’ll allow all origins, methods, and headers – perfect for local development. Remember to keep this permissive setting only in dev; in production you’d lock it down to your actual domain.",
+      "code": null,
+      "files_touched": [
+        "src/backend/main.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Integrate LangChain with a fake LLM",
+      "goal": "Create a LangChain chain that echoes the user’s message and expose it via a `/chat` endpoint.",
+      "bullets": [
+        "Add `src/backend/model.py` that builds a `LLMChain` using `FakeListLLM`.",
+        "Expose a POST `/chat` route that receives a `message` and returns the chain’s reply."
+      ],
+      "speaker_notes": "Time to bring LangChain into the picture. In `model.py` we’ll build a tiny chain that uses `FakeListLLM` – this is a built‑in LangChain class that pretends to be an LLM without any external API keys. The chain simply echoes the input back to us. We then import a helper `get_response` function from `model.py` into `main.py` and add a POST `/chat` endpoint. The endpoint receives a JSON payload with a `message` field, runs it through the chain, and returns a JSON response containing the `reply`. Because we’re using a fake LLM, the whole thing runs instantly and works offline, which is perfect for a beginner tutorial.",
+      "code": null,
+      "files_touched": [
+        "src/backend/model.py",
+        "src/backend/main.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 5,
+      "title": "Write backend tests",
+      "goal": "Add a couple of pytest tests that verify the health and chat endpoints.",
+      "bullets": [
+        "Create `tests/test_backend.py`.",
+        "Use `TestClient` from FastAPI to call the endpoints.",
+        "Assert that `/health` returns status ok and `/chat` returns a string reply."
+      ],
+      "speaker_notes": "Testing is a habit you’ll thank yourself for later. We’ll create a `tests` folder and add `test_backend.py`. Using FastAPI’s `TestClient` we can make HTTP calls against our app without starting a server. The first test hits `/health` and checks the JSON payload. The second test posts a message to `/chat` and verifies that we get a `reply` field back. Run the tests with `pytest -q` – you should see two passing tests. If anything fails, double‑check the import paths and the request payloads.",
+      "code": null,
+      "files_touched": [
+        "tests/test_backend.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Bootstrap the Vite + React frontend",
+      "goal": "Create the frontend folder, install dependencies, and add the Vite config.",
+      "bullets": [
+        "Run `npm create vite@latest src/frontend -- --template react`.",
+        "Replace the generated `index.html` with a minimal version that loads `/src/main.jsx`.",
+        "Add a `vite.config.js` that proxies `/api` to the FastAPI server."
+      ],
+      "speaker_notes": "Switching over to the UI side – we’ll use Vite because it gives us instant hot‑module reloading and a tiny configuration. Inside the repo run `npm create vite@latest src/frontend -- --template react`. This scaffolds a React project under `src/frontend`. We’ll simplify the generated `index.html` to just a root div and a script tag that points at `src/main.jsx`. The most important part is the Vite config: we tell Vite to proxy any request that starts with `/api` to `http://127.0.0.1:8000`. This way our React code can call `/api/chat` and Vite will forward it to the FastAPI backend, keeping the same origin from the browser’s perspective.",
+      "code": null,
+      "files_touched": [
+        "src/frontend/index.html",
+        "src/frontend/vite.config.js",
+        "src/frontend/package.json"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 7,
+      "title": "Build the React UI",
+      "goal": "Create `main.jsx`, `App.jsx`, and an API helper that talks to the backend.",
+      "bullets": [
+        "`main.jsx` renders the `App` component.",
+        "`App.jsx` holds state for the conversation, a form to send messages, and a display area.",
+        "`api.js` wraps `fetch('/api/chat')` and returns the `reply` field."
+      ],
+      "speaker_notes": "Now we write the actual UI. In `src/main.jsx` we bootstrap React with `ReactDOM.createRoot`. The `App` component is where the magic happens – we keep an array of message objects, each with a `role` (user or assistant) and `content`. The form at the bottom lets the user type a message; on submit we optimistically add the user message to the list, clear the input, then call our `sendMessage` helper. `sendMessage` lives in `api.js` and uses the Fetch API to POST to `/api/chat`. When the response arrives we push the assistant’s reply onto the message list. Simple, clean, and fully typed with React’s modern hooks.",
+      "code": null,
+      "files_touched": [
+        "src/frontend/src/main.jsx",
+        "src/frontend/src/App.jsx",
+        "src/frontend/src/api.js"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Run the full stack together",
+      "goal": "Start the FastAPI server and the Vite dev server, then test the chat UI.",
+      "bullets": [
+        "In one terminal run `uvicorn src.backend.main:app --reload`.",
+        "In another terminal `cd src/frontend && npm install && npm run dev`.",
+        "Open `http://localhost:5173` in the browser, type a message, and see the echoed reply."
+      ],
+      "speaker_notes": "Everything is wired up – let’s see it in action. Open two terminal windows. In the first one start the backend with `uvicorn src.backend.main:app --reload`. You should see the usual Uvicorn startup logs and the `/health` endpoint responding. In the second terminal `cd src/frontend && npm install && npm run dev`. Vite will spin up on port 5173 and automatically open a browser tab. Type something like “Hello world” into the input box and hit Send. The UI will show your message on the right and, a moment later, the assistant’s reply on the left – which in our fake LLM case is just an echo of what you typed. If you see that, congratulations – you have a working full‑stack app!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 9,
+      "title": "Add a loading indicator (optional challenge)",
+      "goal": "Show a spinner while the request to the backend is pending.",
+      "bullets": [
+        "Add a `loading` boolean state in `App.jsx`.",
+        "Set `loading` to true before calling `sendMessage` and false after the response.",
+        "Render a simple “Thinking…” message or CSS spinner when `loading` is true."
+      ],
+      "speaker_notes": "User experience matters – let’s give the user feedback while the backend processes the request. We’ll add a `loading` state hook in `App.jsx`. When the form submits we set `loading` to true, then after the `await sendMessage` resolves we set it back to false. In the render block we conditionally show a small “Thinking…” paragraph or a CSS spinner when `loading` is true. This small tweak makes the app feel more responsive and demonstrates a common pattern in React apps.",
+      "code": null,
+      "files_touched": [
+        "src/frontend/src/App.jsx"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 10,
+      "title": "Wrap‑up and next steps",
+      "goal": "Summarize what we built and point to extensions.",
+      "bullets": [
+        "Review the project layout and the code we wrote.",
+        "Suggest swapping the fake LLM for a real OpenAI or HuggingFace model.",
+        "Mention Dockerizing the backend and deploying to Vercel or Render."
+      ],
+      "speaker_notes": "That’s a wrap! We just built a complete, runnable full‑stack AI chat app in under three hours. We saw how to structure a monorepo, set up a FastAPI service, integrate LangChain with a fake LLM, write a couple of unit tests, and spin up a modern React UI with Vite. From here you can replace the `FakeListLLM` with a real model – for example `OpenAI` or a HuggingFace transformer – and you’ll have a production‑ready assistant. You could also containerize the backend with Docker, add authentication, or deploy the frontend to Vercel and the API to Render. The sky’s the limit. Happy coding!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    }
+  ],
+  "outro_transcript": "Thanks for watching! If you enjoyed this tutorial, give it a thumbs up, subscribe for more project‑based coding videos, and drop a comment if you run into any issues. The full source code is linked in the description, and you’ll find a `README.md` with all the commands you need to get started. Keep experimenting, keep building, and I’ll see you in the next video.",
+  "final_project_code": "# --- pyproject.toml ---\n[project]\nname = \"langchain_fastapi_fullstack\"\nversion = \"0.1.0\"\ndescription = \"A small fullstack app with FastAPI, LangChain, and Vite React.\"\nrequires-python = \">=3.12,<3.13\"\nauthors = [{name = \"Your Name\", email = \"you@example.com\"}]\nlicense = {text = \"MIT\"}\n\n[project.dependencies]\nfastapi = \">=0.110.0\"\nuvicorn = \">=0.27.0\"\nlangchain = \">=0.2.0\"\npydantic = \">=2.7.0\"\nhttpx = \">=0.27.0\"\n\n[build-system]\nrequires = [\"setuptools>=69.0\"]\nbuild-backend = \"setuptools.build_meta\"\n\n# --- README.md ---\n# LangChain Chat App with FastAPI and Vite React\n\nA tiny full‑stack AI chat application built with:\n- **FastAPI** – the backend API.\n- **LangChain** – a simple chain that echoes the user message (using a fake LLM).\n- **Vite + React** – a modern, hot‑reloading UI.\n\n## How to run\n```bash\n# Backend\npython -m pip install -r requirements.txt  # optional, pyproject already defines deps\nuvicorn src.backend.main:app --reload\n\n# Frontend\ncd src/frontend\nnpm install\nnpm run dev\n```\nOpen `http://localhost:5173` in your browser.\n\n---\n\n# --- src/backend/__init__.py ---\n# This file makes `src.backend` a Python package.\n\n# --- src/backend/main.py ---\nfrom fastapi import FastAPI, HTTPException\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom pydantic import BaseModel\nfrom .model import get_response\n\napp = FastAPI(title=\"LangChain Chat API\")\n\n# Development CORS – allow everything.\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\nclass ChatRequest(BaseModel):\n    message: str\n\nclass ChatResponse(BaseModel):\n    reply: str\n\n@app.get(\"/health\")\ndef health():\n    return {\"status\": \"ok\"}\n\n@app.post(\"/chat\", response_model=ChatResponse)\ndef chat(req: ChatRequest):\n    try:\n        reply = get_response(req.message)\n        return ChatResponse(reply=reply)\n    except Exception as e:\n        raise HTTPException(status_code=500, detail=str(e))\n\n# --- src/backend/model.py ---\nfrom langchain.chains import LLMChain\nfrom langchain.llms.fake import FakeListLLM\nfrom langchain.prompts import PromptTemplate\n\ndef _build_chain():\n    prompt = PromptTemplate(\n        input_variables=[\"input\"],\n        template=\"You are a helpful assistant. Echo the user input: {input}\"\n    )\n    # Fake LLM that simply returns the formatted string.\n    fake_llm = FakeListLLM(responses=[\"Sure, here's what you said: {input}\"])\n    return LLMChain(prompt=prompt, llm=fake_llm)\n\n_chain = _build_chain()\n\ndef get_response(user_input: str) -> str:\n    \"\"\"Run the LangChain chain and return the assistant's reply.\"\"\"\n    return _chain.run(user_input)\n\n# --- src/frontend/index.html ---\n<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <title>LangChain Chat App</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.jsx\"></script>\n  </body>\n</html>\n\n# --- src/frontend/vite.config.js ---\nimport { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    port: 5173,\n    proxy: {\n      '/api': {\n        target: 'http://127.0.0.1:8000',\n        changeOrigin: true,\n        rewrite: (path) => path.replace(/^\\/api/, '')\n      }\n    }\n  }\n});\n\n# --- src/frontend/package.json ---\n{\n  \"name\": \"frontend\",\n  \"version\": \"0.1.0\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\"\n  },\n  \"dependencies\": {\n    \"react\": \"^18.2.0\",\n    \"react-dom\": \"^18.2.0\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-react\": \"^4.2.0\",\n    \"vite\": \"^5.2.0\"\n  }\n}\n\n# --- src/frontend/src/main.jsx ---\nimport React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App.jsx';\n\nReactDOM.createRoot(document.getElementById('root')).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n);\n\n# --- src/frontend/src/App.jsx ---\nimport React, { useState } from 'react';\nimport { sendMessage } from './api.js';\n\nexport default function App() {\n  const [input, setInput] = useState('');\n  const [messages, setMessages] = useState([]);\n  const [loading, setLoading] = useState(false);\n\n  const handleSubmit = async (e) => {\n    e.preventDefault();\n    if (!input.trim()) return;\n    const userMsg = { role: 'user', content: input };\n    setMessages((prev) => [...prev, userMsg]);\n    setInput('');\n    setLoading(true);\n    try {\n      const reply = await sendMessage(userMsg.content);\n      const botMsg = { role: 'assistant', content: reply };\n      setMessages((prev) => [...prev, botMsg]);\n    } catch (err) {\n      console.error(err);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return (\n    <div style={{ maxWidth: '600px', margin: '2rem auto', fontFamily: 'sans-serif' }}>\n      <h1>LangChain Chat</h1>\n      <div style={{ border: '1px solid #ccc', padding: '1rem', minHeight: '200px' }}>\n        {messages.map((msg, idx) => (\n          <p key={idx} style={{ textAlign: msg.role === 'user' ? 'right' : 'left' }}>\n            <strong>{msg.role}:</strong> {msg.content}\n          </p>\n        ))}\n        {loading && <p><em>Thinking...</em></p>}\n      </div>\n      <form onSubmit={handleSubmit} style={{ marginTop: '1rem' }}>\n        <input\n          type=\"text\"\n          value={input}\n          onChange={(e) => setInput(e.target.value)}\n          placeholder=\"Type a message...\"\n          style={{ width: '80%', padding: '0.5rem' }}\n        />\n        <button type=\"submit\" style={{ padding: '0.5rem 1rem' }} disabled={loading}>\n          Send\n        </button>\n      </form>\n    </div>\n  );\n}\n\n# --- src/frontend/src/api.js ---\nexport async function sendMessage(message) {\n  const response = await fetch('/api/chat', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({ message })\n  });\n  if (!response.ok) {\n    const err = await response.json();\n    throw new Error(err.detail || 'Error from server');\n  }\n  const data = await response.json();\n  return data.reply;\n}\n\n# --- tests/test_backend.py ---\nimport pytest\nfrom fastapi.testclient import TestClient\nfrom src.backend.main import app\n\nclient = TestClient(app)\n\ndef test_health():\n    response = client.get('/health')\n    assert response.status_code == 200\n    assert response.json() == {'status': 'ok'}\n\ndef test_chat():\n    payload = {'message': 'Hello world'}\n    response = client.post('/chat', json=payload)\n    assert response.status_code == 200\n    data = response.json()\n    assert 'reply' in data\n    assert isinstance(data['reply'], str)\n",
+  "how_to_run": "```bash\n# 1️⃣ Install Python dependencies (optional, pyproject already pins them)\npython -m pip install .\n\n# 2️⃣ Run the FastAPI backend\nuvicorn src.backend.main:app --reload\n# The API will be available at http://127.0.0.1:8000\n\n# 3️⃣ Open a new terminal for the frontend\ncd src/frontend\nnpm install            # install React, Vite, etc.\nnpm run dev            # starts Vite on http://localhost:5173\n\n# 4️⃣ Open your browser to http://localhost:5173, type a message, and watch the reply appear.\n```",
+  "challenges": [
+    {
+      "title": "Add input validation to the chat endpoint",
+      "description": "Prevent empty messages from reaching the LangChain chain and return a 400 error with a helpful message.",
+      "build_process": "Modify `ChatRequest` to add a Pydantic validator that strips whitespace and raises a `ValueError` if the resulting string is empty. Update the `/chat` endpoint to catch the validation error and return a `HTTPException` with status code 400.",
+      "solution_code": "# --- src/backend/main.py (updated) ---\nfrom fastapi import FastAPI, HTTPException\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom pydantic import BaseModel, validator\nfrom .model import get_response\n\napp = FastAPI(title=\"LangChain Chat API\")\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\nclass ChatRequest(BaseModel):\n    message: str\n\n    @validator('message')\n    def not_empty(cls, v):\n        if not v.strip():\n            raise ValueError('Message cannot be empty')\n        return v.strip()\n\nclass ChatResponse(BaseModel):\n    reply: str\n\n@app.get(\"/health\")\ndef health():\n    return {\"status\": \"ok\"}\n\n@app.post(\"/chat\", response_model=ChatResponse)\ndef chat(req: ChatRequest):\n    try:\n        reply = get_response(req.message)\n        return ChatResponse(reply=reply)\n    except ValueError as ve:\n        raise HTTPException(status_code=400, detail=str(ve))\n    except Exception as e:\n        raise HTTPException(status_code=500, detail=str(e))\n",
+      "solution_walkthrough": "We added a Pydantic validator on the `message` field. The validator strips whitespace and raises a `ValueError` if the resulting string is empty. FastAPI automatically converts that `ValueError` into a 422 response, but we catch it explicitly in the endpoint to return a clearer 400 status with our custom message. This prevents the LangChain chain from being called with an empty string and gives the client immediate feedback.",
+      "sample_output": null
+    },
+    {
+      "title": "Add a unit test for the model function",
+      "description": "Ensure that `get_response` returns a string containing the original user input.",
+      "build_process": "Create a new test file `tests/test_model.py`. Import `get_response` from `src.backend.model` and assert that the returned reply includes the input text.",
+      "solution_code": "# --- tests/test_model.py ---\nfrom src.backend.model import get_response\n\ndef test_get_response_contains_input():\n    user_input = \"Testing model\"\n    reply = get_response(user_input)\n    # The fake LLM echoes the input inside the response string.\n    assert user_input in reply\n",
+      "solution_walkthrough": "The test imports the `get_response` helper directly and feeds it a known string. Because our fake LLM returns a templated response that includes `{input}`, the reply should contain the original `user_input`. The assertion guarantees that the LangChain chain is wired correctly. Running `pytest -q` should now show three passing tests.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": {
+    "passed": true,
+    "score": 100.0,
+    "reviews": [
+      {
+        "agent": "structure",
+        "passed": true,
+        "summary": "Structure OK",
+        "findings": []
+      },
+      {
+        "agent": "practices",
+        "passed": true,
+        "summary": "Practices OK",
+        "findings": []
+      },
+      {
+        "agent": "code",
+        "passed": false,
+        "summary": "1 code finding(s), 1 error(s)",
+        "findings": [
+          {
+            "agent": "code",
+            "severity": "info",
+            "code": "UNKNOWN",
+            "message": "agent='code' severity='error' code='TOO_FEW_CODE_STEPS' message='Only 0/10 steps include code' location='steps' suggestion='Most steps should ship code into the project'",
+            "location": "",
+            "suggestion": ""
+          }
+        ]
+      }
+    ],
+    "repair": {
+      "applied": true,
+      "summary": "Applied 2 deterministic fix(es)",
+      "actions": [
+        {
+          "action": "add_repo_layout_entry",
+          "location": "repo_layout",
+          "detail": "src/__init__.py"
+        },
+        {
+          "action": "add_repo_layout_entry",
+          "location": "repo_layout",
+          "detail": "tests/__init__.py"
+        }
+      ],
+      "remaining_issues": []
+    },
+    "findings_count": 1,
+    "error_count": 0,
+    "warning_count": 0
+  }
+}

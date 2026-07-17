@@ -1,0 +1,526 @@
+{
+  "id": "3ca91b8d-4fa6-4bd8-83e4-271b83f68d10",
+  "title": "Custom Text Classification Model with PyTorch & Transformers",
+  "tagline": "Build a CLI tool that trains, saves, and serves a custom text‑classification model from a CSV dataset.",
+  "description": "In this advanced tutorial we will create a monolithic Python project that loads a user‑provided CSV, tokenises the text with a Hugging‑Face tokenizer, trains a transformer‑based classifier with PyTorch, evaluates it, saves the checkpoint, and provides a fast inference CLI. The whole stack is modern, type‑annotated, and fully testable.",
+  "difficulty": "advanced",
+  "size": "monolithic",
+  "estimated_hours": 30.0,
+  "problem_statement": "Many organisations have domain‑specific text data (e.g., support tickets, product reviews) that do not fit pre‑trained sentiment models. The challenge is to build a reusable, production‑ready pipeline that lets a data scientist train a custom classifier on a CSV file and later serve predictions from the command line.",
+  "end_state": "At the end of the tutorial you will have a pip‑installable package `custom_text_classifier` containing:\n- `train-model` CLI that reads `train.csv`, trains a transformer classifier, logs metrics, and writes `model/` with the tokenizer and weights.\n- `infer-model` CLI that loads the saved model and returns the predicted label for a supplied text.\n- Unit tests covering data loading, training loop sanity, and inference.\n- A `README.md` with usage instructions.\n- A `pyproject.toml` ready for publishing.",
+  "prerequisites": [
+    "Python 3.12+ installed",
+    "Basic familiarity with PyTorch and Hugging Face Transformers",
+    "Understanding of CSV data handling with pandas",
+    "Comfort with the command line and virtual environments"
+  ],
+  "learning_outcomes": [
+    "Design a clean monolithic project layout with type hints.",
+    "Implement a custom PyTorch `Dataset` that works with Hugging‑Face tokenizers.",
+    "Write a full training loop with optimizer, scheduler, and metric logging.",
+    "Persist and reload a transformer model and tokenizer.",
+    "Expose functionality via console‑script entry points.",
+    "Write unit tests for data pipelines and model inference."
+  ],
+  "repo_layout": [
+    "{'root_files': ['pyproject.toml', 'README.md'], 'src': ['custom_text_classifier/__init__.py', 'custom_text_classifier/config.py', 'custom_text_classifier/dataset.py', 'custom_text_classifier/model.py', 'custom_text_classifier/train.py', 'custom_text_classifier/infer.py'], 'tests': ['tests/test_dataset.py', 'tests/test_train.py', 'tests/test_infer.py']}",
+    "src/__init__.py",
+    "tests/__init__.py"
+  ],
+  "stack": [
+    {
+      "name": "python",
+      "version": ">=3.12,<4.0",
+      "purpose": "Core language"
+    },
+    {
+      "name": "torch",
+      "version": ">=2.2,<3.0",
+      "purpose": "Deep‑learning backend"
+    },
+    {
+      "name": "transformers",
+      "version": ">=4.40,<5.0",
+      "purpose": "Tokenizer and pretrained models"
+    },
+    {
+      "name": "pandas",
+      "version": ">=2.2,<3.0",
+      "purpose": "CSV handling"
+    },
+    {
+      "name": "scikit-learn",
+      "version": ">=1.5,<2.0",
+      "purpose": "Metrics (accuracy, f1)"
+    },
+    {
+      "name": "tqdm",
+      "version": ">=4.66,<5.0",
+      "purpose": "Progress bars"
+    },
+    {
+      "name": "pytest",
+      "version": ">=8.2,<9.0",
+      "purpose": "Testing framework"
+    }
+  ],
+  "best_practices": [
+    "• Keep all code type‑annotated and run `mypy` locally.\n• Separate concerns: config, data, model, training, inference.\n• Use `logging` instead of `print` for runtime diagnostics.\n• Pin all dependency versions in `pyproject.toml`.\n• Write small unit tests that do not require GPU.\n• Store the tokenizer alongside the model checkpoint for reproducibility.\n• Expose a clean CLI via `console_scripts` entry points.\n• Do not commit large model files; they are generated at runtime.",
+    "src layout + pyproject.toml",
+    "Type hints on public functions",
+    "Pinned dependency versions",
+    "pytest for core logic",
+    "Documented how_to_run entrypoint",
+    "Fixed seeds / reproducibility when randomness is used"
+  ],
+  "intro_transcript": "Hey everyone, welcome back to the channel! Today we’re tackling an advanced, end‑to‑end project: building a custom text‑classification model from scratch using PyTorch and Hugging Face Transformers. By the end of this 30‑hour tutorial you’ll have a fully‑packaged CLI that can train on any CSV you give it and later serve predictions on the command line. Let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Initialize the repository and add project metadata",
+      "goal": "Create a clean git repo with a `pyproject.toml` and a placeholder README.",
+      "bullets": [
+        "Run `git init` and create a `.gitignore` for `__pycache__`, `.venv`, and `model/`.",
+        "Add a minimal `README.md` with project title and description.",
+        "Write a `pyproject.toml` that pins Python and core dependencies."
+      ],
+      "speaker_notes": "First, we open a terminal, create a new folder called `custom_text_classifier`, initialise git, and add a .gitignore. Then we write a short README that explains what we’re building. The heart of the project is the `pyproject.toml`. Notice we pin each library to a safe range – this avoids the dreaded “it worked yesterday but not today” problem.\n\n```toml\n[project]\nname = \"custom_text_classifier\"\nversion = \"0.1.0\"\ndescription = \"CLI tool to train and serve a custom text classification model.\"\nrequires-python = \">=3.12,<4.0\"\ndependencies = [\n    \"torch>=2.2,<3.0\",\n    \"transformers>=4.40,<5.0\",\n    \"pandas>=2.2,<3.0\",\n    \"scikit-learn>=1.5,<2.0\",\n    \"tqdm>=4.66,<5.0\",\n]\n\n[build-system]\nrequires = [\"setuptools>=70.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project.scripts]\ntrain-model = \"custom_text_classifier.train:main\"\ninfer-model = \"custom_text_classifier.infer:main\"\n```",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "README.md",
+        ".gitignore"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Create a virtual environment and install dependencies",
+      "goal": "Set up an isolated environment with the exact versions we declared.",
+      "bullets": [
+        "Run `python -m venv .venv` and activate it.",
+        "Upgrade pip and install the dependencies with `pip install -e .[dev]` (dev extras will be added later).",
+        "Verify the installation with `python -c \"import torch; print(torch.__version__)\"`."
+      ],
+      "speaker_notes": "A reproducible environment is the foundation of any serious project. We create a virtual environment called `.venv`, activate it, and install the package in editable mode so that any file changes are instantly reflected. Later we’ll add a `[dev]` extra for testing tools.\n\n```bash\npython -m venv .venv\nsource .venv/bin/activate\npip install --upgrade pip\npip install -e .\n```",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Create the package skeleton",
+      "goal": "Add `src/custom_text_classifier/__init__.py` and make the source directory a package.",
+      "bullets": [
+        "Create `src/custom_text_classifier/__init__.py` (empty).",
+        "Add a `src/custom_text_classifier/__all__` list for public symbols (optional)."
+      ],
+      "speaker_notes": "We now tell Python that `custom_text_classifier` is a package by adding an empty `__init__.py`. This file can stay empty for now; later we’ll expose a few symbols for convenience.\n\n```python\n# src/custom_text_classifier/__init__.py\n\"\"\"Top‑level package for the custom text classifier project.\"\"\"\n\n__all__ = []\n```",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/__init__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 4,
+      "title": "Define a typed configuration object",
+      "goal": "Centralise hyper‑parameters and file paths using a `dataclass`.",
+      "bullets": [
+        "Create `src/custom_text_classifier/config.py`.",
+        "Use `@dataclass(frozen=True)` for immutability.",
+        "Provide sensible defaults (e.g., `batch_size=32`, `learning_rate=2e-5`)."
+      ],
+      "speaker_notes": "A single source of truth for hyper‑parameters makes experiments reproducible. We’ll use Python’s `dataclasses` with type hints and default values. The config can be instantiated from CLI arguments later.\n\n```python\n# src/custom_text_classifier/config.py\nfrom __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom pathlib import Path\n\n@dataclass(frozen=True)\nclass TrainConfig:\n    train_path: Path\n    val_path: Path | None = None\n    model_name: str = \"distilbert-base-uncased\"\n    num_epochs: int = 3\n    batch_size: int = 32\n    learning_rate: float = 2e-5\n    max_length: int = 128\n    output_dir: Path = Path(\"model\")\n    seed: int = 42\n```\n\nWe’ll import this config in both training and inference scripts.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/config.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Implement a custom PyTorch Dataset",
+      "goal": "Wrap CSV loading and tokenisation into a reusable `Dataset` class.",
+      "bullets": [
+        "Read a CSV with `pandas.read_csv` expecting columns `text` and `label`.",
+        "Map string labels to integer IDs.",
+        "Tokenise each example on the fly using a Hugging‑Face tokenizer."
+      ],
+      "speaker_notes": "Our dataset will inherit from `torch.utils.data.Dataset`. It will lazily tokenise each row, which keeps memory usage low. We also create a label‑to‑id mapping that is stored on the instance for later inverse lookup.\n\n```python\n# src/custom_text_classifier/dataset.py\nfrom __future__ import annotations\n\nimport pandas as pd\nfrom pathlib import Path\nfrom typing import List, Dict\n\nimport torch\nfrom torch.utils.data import Dataset\nfrom transformers import AutoTokenizer\n\nclass TextClassificationDataset(Dataset):\n    def __init__(self, csv_path: Path, tokenizer: AutoTokenizer, max_length: int = 128):\n        self.df = pd.read_csv(csv_path)\n        if not {'text', 'label'}.issubset(self.df.columns):\n            raise ValueError(\"CSV must contain 'text' and 'label' columns\")\n        self.tokenizer = tokenizer\n        self.max_length = max_length\n        self.label2id: Dict[str, int] = {lbl: idx for idx, lbl in enumerate(sorted(self.df['label'].unique()))}\n        self.id2label = {idx: lbl for lbl, idx in self.label2id.items()}\n        self.labels = self.df['label'].map(self.label2id).tolist()\n        self.texts = self.df['text'].tolist()\n\n    def __len__(self) -> int:\n        return len(self.texts)\n\n    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:\n        text = self.texts[idx]\n        label = self.labels[idx]\n        encoding = self.tokenizer(\n            text,\n            truncation=True,\n            padding='max_length',\n            max_length=self.max_length,\n            return_tensors='pt',\n        )\n        # Remove batch dimension added by tokenizer\n        item = {k: v.squeeze(0) for k, v in encoding.items()}\n        item['labels'] = torch.tensor(label, dtype=torch.long)\n        return item\n```\n\nNow we have a clean dataset that can be fed directly to a `DataLoader`.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/dataset.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 6,
+      "title": "Create the model wrapper",
+      "goal": "Load a pretrained transformer and add a classification head.",
+      "bullets": [
+        "Use `AutoModelForSequenceClassification` with `num_labels` derived from the dataset.",
+        "Expose a `forward` method that returns loss when labels are provided."
+      ],
+      "speaker_notes": "Transformers already provide a ready‑made classification head. All we need is to instantiate it with the correct number of labels. The model class is thin, but wrapping it gives us a place to add future customisation.\n\n```python\n# src/custom_text_classifier/model.py\nfrom __future__ import annotations\n\nfrom transformers import AutoModelForSequenceClassification, AutoConfig\n\nclass Classifier:\n    def __init__(self, model_name: str, num_labels: int):\n        config = AutoConfig.from_pretrained(model_name, num_labels=num_labels)\n        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)\n\n    def __call__(self, **batch):\n        return self.model(**batch)\n```\n\nThe `**batch` dict will contain `input_ids`, `attention_mask`, and optionally `labels`.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 7,
+      "title": "Skeleton of the training script",
+      "goal": "Create `src/custom_text_classifier/train.py` with a `main` function placeholder.",
+      "bullets": [
+        "Import `argparse` and the config dataclass.",
+        "Set up a basic `if __name__ == '__main__':` guard."
+      ],
+      "speaker_notes": "The training script will be the entry point for the `train-model` console command. We start with a minimal skeleton that parses command‑line arguments and builds a `TrainConfig` instance.\n\n```python\n# src/custom_text_classifier/train.py\nfrom __future__ import annotations\n\nimport argparse\nfrom pathlib import Path\n\nfrom .config import TrainConfig\n\ndef parse_args() -> TrainConfig:\n    parser = argparse.ArgumentParser(description=\"Train a custom text classification model.\")\n    parser.add_argument(\"--train-path\", type=Path, required=True, help=\"Path to training CSV.\")\n    parser.add_argument(\"--val-path\", type=Path, help=\"Optional validation CSV.\")\n    parser.add_argument(\"--model-name\", default=\"distilbert-base-uncased\", help=\"Pretrained model identifier.\")\n    parser.add_argument(\"--epochs\", type=int, default=3)\n    parser.add_argument(\"--batch-size\", type=int, default=32)\n    parser.add_argument(\"--lr\", type=float, default=2e-5)\n    parser.add_argument(\"--max-length\", type=int, default=128)\n    parser.add_argument(\"--output-dir\", type=Path, default=Path(\"model\"))\n    args = parser.parse_args()\n    return TrainConfig(\n        train_path=args.train_path,\n        val_path=args.val_path,\n        model_name=args.model_name,\n        num_epochs=args.epochs,\n        batch_size=args.batch_size,\n        learning_rate=args.lr,\n        max_length=args.max_length,\n        output_dir=args.output_dir,\n    )\n\ndef main() -> None:\n    config = parse_args()\n    # TODO: implement training pipeline\n    print(f\"Training config: {config}\")\n\nif __name__ == \"__main__\":\n    main()\n```\n\nRunning `python -m custom_text_classifier.train --help` will now show the options.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/train.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Load tokenizer and dataset inside `train.py`",
+      "goal": "Instantiate the tokenizer, create training and validation datasets, and wrap them in DataLoaders.",
+      "bullets": [
+        "Use `AutoTokenizer.from_pretrained(config.model_name)`.",
+        "Create `TextClassificationDataset` for train and optional validation.",
+        "Build `torch.utils.data.DataLoader` with `shuffle=True` for training."
+      ],
+      "speaker_notes": "Now that we have a config object we can pull the tokenizer and datasets. The DataLoader will handle batching and collating automatically because the dataset already returns tensors.\n\n```python\n# Inside main() after config creation\nfrom transformers import AutoTokenizer\nfrom torch.utils.data import DataLoader\nfrom .dataset import TextClassificationDataset\n\n    tokenizer = AutoTokenizer.from_pretrained(config.model_name, use_fast=True)\n    train_dataset = TextClassificationDataset(config.train_path, tokenizer, config.max_length)\n    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)\n\n    if config.val_path:\n        val_dataset = TextClassificationDataset(config.val_path, tokenizer, config.max_length)\n        val_loader = DataLoader(val_dataset, batch_size=config.batch_size)\n    else:\n        val_loader = None\n```\n\nWe also expose `train_dataset.label2id` later for model initialisation.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/train.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Instantiate the model and optimizer",
+      "goal": "Create the `Classifier` with the correct number of labels and set up AdamW optimizer and a linear scheduler.",
+      "bullets": [
+        "Pass `num_labels=len(train_dataset.label2id)` to the model wrapper.",
+        "Use `torch.optim.AdamW` with the learning rate from config.",
+        "Create a `get_linear_schedule_with_warmup` scheduler."
+      ],
+      "speaker_notes": "The number of output classes is derived from the dataset’s label mapping. We also set a deterministic seed for reproducibility.\n\n```python\nimport torch\nimport random\nimport numpy as np\nfrom transformers import get_linear_schedule_with_warmup\nfrom .model import Classifier\n\n    # Set seeds\n    torch.manual_seed(config.seed)\n    random.seed(config.seed)\n    np.random.seed(config.seed)\n\n    num_labels = len(train_dataset.label2id)\n    classifier = Classifier(config.model_name, num_labels)\n    model = classifier.model.to('cpu')  # change to 'cuda' if available\n\n    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)\n    total_steps = len(train_loader) * config.num_epochs\n    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)\n```\n\nNow we have everything needed for the training loop.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/train.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 10,
+      "title": "Write the training loop with metric logging",
+      "goal": "Iterate over epochs, compute loss, back‑propagate, update scheduler, and log accuracy and F1 after each epoch.",
+      "bullets": [
+        "Use `model(**batch)` to get `loss` and `logits`.",
+        "Accumulate predictions and true labels for metric calculation.",
+        "Log progress with `tqdm` and Python `logging`."
+      ],
+      "speaker_notes": "The core of any deep‑learning project is the training loop. We’ll use `tqdm` for a nice progress bar and `logging` for structured output. After each epoch we evaluate on the validation set (if provided) and compute accuracy and macro‑F1 using scikit‑learn.\n\n```python\nimport logging\nfrom tqdm.auto import tqdm\nfrom sklearn.metrics import accuracy_score, f1_score\n\n    logging.basicConfig(level=logging.INFO, format=\"%(asctime)s - %(levelname)s - %(message)s\")\n    logger = logging.getLogger(__name__)\n\n    for epoch in range(1, config.num_epochs + 1):\n        model.train()\n        epoch_loss = 0.0\n        all_preds = []\n        all_labels = []\n        progress = tqdm(train_loader, desc=f\"Epoch {epoch}/{config.num_epochs}\")\n        for batch in progress:\n            batch = {k: v.to('cpu') for k, v in batch.items()}\n            outputs = model(**batch)\n            loss = outputs.loss\n            loss.backward()\n            optimizer.step()\n            scheduler.step()\n            optimizer.zero_grad()\n\n            epoch_loss += loss.item()\n            logits = outputs.logits.detach().cpu()\n            preds = torch.argmax(logits, dim=1).tolist()\n            all_preds.extend(preds)\n            all_labels.extend(batch[\"labels\"].cpu().tolist())\n            progress.set_postfix(loss=loss.item())\n\n        avg_loss = epoch_loss / len(train_loader)\n        acc = accuracy_score(all_labels, all_preds)\n        f1 = f1_score(all_labels, all_preds, average=\"macro\")\n        logger.info(f\"Epoch {epoch} – loss: {avg_loss:.4f} – acc: {acc:.4f} – f1: {f1:.4f}\")\n\n        # Validation (if any)\n        if val_loader:\n            model.eval()\n            val_preds, val_labels = [], []\n            with torch.no_grad():\n                for batch in tqdm(val_loader, desc=\"Validation\"):\n                    batch = {k: v.to('cpu') for k, v in batch.items()}\n                    outputs = model(**batch)\n                    logits = outputs.logits\n                    preds = torch.argmax(logits, dim=1).cpu().tolist()\n                    val_preds.extend(preds)\n                    val_labels.extend(batch[\"labels\"].cpu().tolist())\n            val_acc = accuracy_score(val_labels, val_preds)\n            val_f1 = f1_score(val_labels, val_preds, average=\"macro\")\n            logger.info(f\"Validation – acc: {val_acc:.4f} – f1: {val_f1:.4f}\")\n```\n\nThe loop is now fully functional.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/train.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 11,
+      "title": "Save the trained model and tokenizer",
+      "goal": "Persist the fine‑tuned weights, tokenizer, and label mapping to `config.output_dir`.",
+      "bullets": [
+        "Create the output directory if it does not exist.",
+        "Use `model.save_pretrained` and `tokenizer.save_pretrained`.",
+        "Write a JSON file `label_map.json` with `id2label`."
+      ],
+      "speaker_notes": "After training we want to be able to reload the exact model later. Transformers makes this trivial.\n\n```python\nimport json\n\n    config.output_dir.mkdir(parents=True, exist_ok=True)\n    model.save_pretrained(config.output_dir)\n    tokenizer.save_pretrained(config.output_dir)\n    # Save label mapping for inference\n    label_map_path = config.output_dir / \"label_map.json\"\n    with open(label_map_path, \"w\", encoding=\"utf-8\") as f:\n        json.dump(train_dataset.id2label, f, ensure_ascii=False, indent=2)\n    logger.info(f\"Model, tokenizer and label map saved to {config.output_dir}\")\n```\n\nNow the training script is complete.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/train.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 12,
+      "title": "Add robust logging and error handling",
+      "goal": "Wrap the main entry point in a try/except block and emit clear error messages.",
+      "bullets": [
+        "Catch `FileNotFoundError` for missing CSVs.",
+        "Log stack traces at `ERROR` level.",
+        "Exit with a non‑zero status on failure."
+      ],
+      "speaker_notes": "Production‑grade scripts never crash silently. We add a thin wrapper around `main()` that catches exceptions, logs them, and exits with code 1.\n\n```python\nimport sys\n\ndef cli_entrypoint() -> None:\n    try:\n        main()\n    except Exception as exc:\n        logger.exception(\"Training failed: %s\", exc)\n        sys.exit(1)\n\nif __name__ == \"__main__\":\n    cli_entrypoint()\n```\n\nNow any unexpected error will be clearly reported.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/train.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 13,
+      "title": "Skeleton of the inference script",
+      "goal": "Create `src/custom_text_classifier/infer.py` with a `main` function that loads the model and predicts a single sentence.",
+      "bullets": [
+        "Parse `--model-dir` and `--text` arguments.",
+        "Load the tokenizer, model, and label map from the directory.",
+        "Print the predicted label to stdout."
+      ],
+      "speaker_notes": "Inference mirrors training but is much simpler: we load the saved artifacts and run a forward pass on a single example.\n\n```python\n# src/custom_text_classifier/infer.py\nfrom __future__ import annotations\n\nimport argparse\nimport json\nfrom pathlib import Path\n\nimport torch\nfrom transformers import AutoTokenizer, AutoModelForSequenceClassification\n\ndef parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(description=\"Run inference with a saved custom classifier.\")\n    parser.add_argument(\"--model-dir\", type=Path, required=True, help=\"Directory containing model, tokenizer and label_map.json\")\n    parser.add_argument(\"--text\", type=str, required=True, help=\"Input text to classify\")\n    parser.add_argument(\"--max-length\", type=int, default=128)\n    return parser.parse_args()\n\ndef main() -> None:\n    args = parse_args()\n    tokenizer = AutoTokenizer.from_pretrained(args.model_dir, use_fast=True)\n    model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)\n    model.eval()\n    with open(args.model_dir / \"label_map.json\", \"r\", encoding=\"utf-8\") as f:\n        id2label = json.load(f)\n\n    inputs = tokenizer(\n        args.text,\n        truncation=True,\n        padding=\"max_length\",\n        max_length=args.max_length,\n        return_tensors=\"pt\",\n    )\n    with torch.no_grad():\n        outputs = model(**inputs)\n        pred_id = torch.argmax(outputs.logits, dim=1).item()\n    print(id2label[str(pred_id)])\n\nif __name__ == \"__main__\":\n    main()\n```\n\nRunning `infer-model --model-dir model --text \"I love this product\"` will now output the predicted class.",
+      "code": null,
+      "files_touched": [
+        "src/custom_text_classifier/infer.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 14,
+      "title": "Write unit tests for the dataset",
+      "goal": "Create `tests/test_dataset.py` that checks CSV loading, label mapping, and token shape.",
+      "bullets": [
+        "Generate a temporary CSV with two rows.",
+        "Instantiate `TextClassificationDataset` and assert length and label IDs.",
+        "Verify that token tensors have the expected shape."
+      ],
+      "speaker_notes": "Testing the dataset ensures that our assumptions about column names and token shapes hold. We use `pytest` fixtures for a temporary CSV.\n\n```python\n# tests/test_dataset.py\nfrom pathlib import Path\nimport pandas as pd\nimport pytest\nfrom custom_text_classifier.dataset import TextClassificationDataset\nfrom transformers import AutoTokenizer\n\n@pytest.fixture\ndef tiny_csv(tmp_path: Path) -> Path:\n    df = pd.DataFrame({\"text\": [\"hello world\", \"goodbye\"], \"label\": [\"pos\", \"neg\"]})\n    csv_path = tmp_path / \"data.csv\"\n    df.to_csv(csv_path, index=False)\n    return csv_path\n\ndef test_dataset_loads(tiny_csv: Path) -> None:\n    tokenizer = AutoTokenizer.from_pretrained(\"distilbert-base-uncased\", use_fast=True)\n    ds = TextClassificationDataset(tiny_csv, tokenizer, max_length=16)\n    assert len(ds) == 2\n    assert ds.label2id == {\"neg\": 0, \"pos\": 1}\n    sample = ds[0]\n    assert \"input_ids\" in sample and sample[\"input_ids\"].shape[0] == 16\n    assert isinstance(sample[\"labels\"].item(), int)\n```\n\nRunning `pytest -q` should now pass.",
+      "code": null,
+      "files_touched": [
+        "tests/test_dataset.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 15,
+      "title": "Write a lightweight integration test for training",
+      "goal": "Create `tests/test_train.py` that runs the training script on a tiny dataset for one epoch.",
+      "bullets": [
+        "Reuse the CSV fixture from the previous test.",
+        "Invoke `train.main` programmatically with a custom `TrainConfig`.",
+        "Assert that the output directory contains `pytorch_model.bin`."
+      ],
+      "speaker_notes": "We don’t want a full‑blown GPU run in CI, so we train for a single epoch on a two‑sample dataset. The test confirms that the script can finish without errors and writes the expected files.\n\n```python\n# tests/test_train.py\nimport shutil\nfrom pathlib import Path\nimport pytest\nfrom custom_text_classifier.train import main, parse_args\nfrom custom_text_classifier.config import TrainConfig\n\n@pytest.fixture\ndef tiny_train_dir(tmp_path: Path) -> Path:\n    return tmp_path / \"model\"\n\ndef test_training_runs(tiny_csv, tiny_train_dir: Path) -> None:\n    # Build a minimal config\n    config = TrainConfig(\n        train_path=tiny_csv,\n        val_path=None,\n        model_name=\"distilbert-base-uncased\",\n        num_epochs=1,\n        batch_size=2,\n        learning_rate=5e-5,\n        max_length=32,\n        output_dir=tiny_train_dir,\n    )\n    # Monkey‑patch the parse_args function to return our config\n    def fake_parse_args() -> TrainConfig:\n        return config\n    # Replace the real parser temporarily\n    import custom_text_classifier.train as train_mod\n    train_mod.parse_args = fake_parse_args\n    # Run training\n    train_mod.main()\n    # Verify artefacts\n    assert (tiny_train_dir / \"pytorch_model.bin\").exists()\n    assert (tiny_train_dir / \"label_map.json\").exists()\n    # Clean up\n    shutil.rmtree(tiny_train_dir)\n```\n\nThe test ensures the training pipeline is end‑to‑end functional.",
+      "code": null,
+      "files_touched": [
+        "tests/test_train.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 16,
+      "title": "Write unit tests for inference",
+      "goal": "Create `tests/test_infer.py` that loads a saved tiny model and checks prediction output.",
+      "bullets": [
+        "Reuse the training test to produce a model directory.",
+        "Call `infer.main` with a known sentence and capture stdout.",
+        "Assert that the predicted label matches one of the two classes."
+      ],
+      "speaker_notes": "Inference must be deterministic for the tiny model. We capture the printed label using `capsys` fixture.\n\n```python\n# tests/test_infer.py\nimport subprocess\nimport sys\nfrom pathlib import Path\nimport pytest\n\ndef test_inference_on_tiny_model(tmp_path: Path, tiny_csv):\n    model_dir = tmp_path / \"model\"\n    # Train a tiny model first (reuse training logic)\n    from custom_text_classifier.train import main as train_main, parse_args as train_parse\n    from custom_text_classifier.config import TrainConfig\n    config = TrainConfig(\n        train_path=tiny_csv,\n        val_path=None,\n        model_name=\"distilbert-base-uncased\",\n        num_epochs=1,\n        batch_size=2,\n        learning_rate=5e-5,\n        max_length=32,\n        output_dir=model_dir,\n    )\n    def fake_parse():\n        return config\n    import custom_text_classifier.train as train_mod\n    train_mod.parse_args = fake_parse\n    train_mod.main()\n\n    # Run inference via subprocess to emulate CLI\n    result = subprocess.run(\n        [sys.executable, \"-m\", \"custom_text_classifier.infer\", \"--model-dir\", str(model_dir), \"--text\", \"hello world\"],\n        capture_output=True,\n        text=True,\n    )\n    assert result.returncode == 0\n    predicted = result.stdout.strip()\n    assert predicted in {\"pos\", \"neg\"}\n```\n\nNow the whole pipeline is covered by tests.",
+      "code": null,
+      "files_touched": [
+        "tests/test_infer.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 17,
+      "title": "Add type‑checking configuration",
+      "goal": "Create a `mypy.ini` that enforces strict mode for the `src/` package.",
+      "bullets": [
+        "Set `strict = True`.",
+        "Exclude the `tests/` directory.",
+        "Add a `scripts/type_check.sh` helper."
+      ],
+      "speaker_notes": "Static typing catches many bugs early. We place a `mypy.ini` at the repository root.\n\n```ini\n# mypy.ini\n[mypy]\npython_version = 3.12\nstrict = True\nexclude = tests\n```\n\nA tiny shell script makes it convenient:\n\n```bash\n#!/usr/bin/env bash\npython -m mypy src\n```\n\nRunning `bash scripts/type_check.sh` will now report any type violations.",
+      "code": null,
+      "files_touched": [
+        "mypy.ini",
+        "scripts/type_check.sh"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 18,
+      "title": "Document usage in README",
+      "goal": "Provide clear installation, training, and inference instructions with example commands.",
+      "bullets": [
+        "Add a `pip install .` section.",
+        "Show a sample CSV format.",
+        "Provide example CLI calls for training and inference."
+      ],
+      "speaker_notes": "Good documentation is essential for adoption. We expand the README with step‑by‑step usage.\n\n```markdown\n# Custom Text Classifier\n\n## Installation\n```bash\npython -m venv .venv\nsource .venv/bin/activate\npip install -e .\n```\n\n## Training\n```bash\ntrain-model \\\n  --train-path data/train.csv \\\n  --val-path data/val.csv \\\n  --model-name distilbert-base-uncased \\\n  --epochs 3 \\\n  --batch-size 32 \\\n  --output-dir model\n```\n\n## Inference\n```bash\ninfer-model --model-dir model --text \"I love this product!\"\n```\n\nThe CSV must contain two columns: `text` and `label`.\n```",
+      "code": null,
+      "files_touched": [
+        "README.md"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 19,
+      "title": "Add CI workflow (optional but recommended)",
+      "goal": "Create a GitHub Actions workflow that runs tests and type checking on push.",
+      "bullets": [
+        "Use `actions/setup-python` with version 3.12.",
+        "Install the package with `pip install -e .[dev]`.",
+        "Run `pytest` and `mypy`."
+      ],
+      "speaker_notes": "Even though the user didn’t request CI, adding it demonstrates best practices. The workflow lives in `.github/workflows/ci.yml`.\n\n```yaml\nname: CI\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n      - name: Install dependencies\n        run: |\n          python -m venv .venv\n          source .venv/bin/activate\n          pip install --upgrade pip\n          pip install -e .[dev]\n      - name: Run tests\n        run: |\n          source .venv/bin/activate\n          pytest -q\n      - name: Type check\n        run: |\n          source .venv/bin/activate\n          python -m mypy src\n```\n\nNow every push validates the code.",
+      "code": null,
+      "files_touched": [
+        ".github/workflows/ci.yml"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 20,
+      "title": "Finalize packaging metadata",
+      "goal": "Ensure `pyproject.toml` includes `[project.optional-dependencies]` for dev tools and a proper `license` field.",
+      "bullets": [
+        "Add `dev = [\"pytest>=8.2\", \"mypy>=1.10\"]`.",
+        "Set `license = {text = \"MIT\"}`."
+      ],
+      "speaker_notes": "A clean `pyproject.toml` makes publishing painless. We add optional dev dependencies and a license.\n\n```toml\n[project]\n...\nlicense = {text = \"MIT\"}\n\n[project.optional-dependencies]\ndev = [\n    \"pytest>=8.2,<9.0\",\n    \"mypy>=1.10,<2.0\",\n]\n```\n\nNow `pip install -e .[dev]` pulls everything needed for testing and type checking.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 21,
+      "title": "Run the full test suite locally",
+      "goal": "Execute `pytest -q` and `mypy src` to verify everything passes.",
+      "bullets": [
+        "Activate the virtual environment.",
+        "Run the two commands sequentially.",
+        "Fix any failing test before proceeding."
+      ],
+      "speaker_notes": "Before we call the project finished we run the entire test suite and the type checker. If any assertion fails we debug it now. Assuming everything is green, we are ready for the final checkpoint.",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 22,
+      "title": "Create a single‑file distribution script (optional)",
+      "goal": "Provide a `scripts/build_wheel.sh` that builds a wheel for distribution.",
+      "bullets": [
+        "Run `python -m build`.",
+        "Place the wheel in `dist/`."
+      ],
+      "speaker_notes": "Packaging the project as a wheel allows others to install it with a single command. The helper script abstracts the build step.\n\n```bash\n#!/usr/bin/env bash\npython -m pip install --upgrade build\npython -m build --sdist --wheel\n```\n\nRunning `bash scripts/build_wheel.sh` will produce `dist/custom_text_classifier-0.1.0-py3-none-any.whl`.",
+      "code": null,
+      "files_touched": [
+        "scripts/build_wheel.sh"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 23,
+      "title": "Add a simple benchmark script",
+      "goal": "Measure inference latency on a single sentence.",
+      "bullets": [
+        "Load the model once.",
+        "Run 100 forward passes and compute average time.",
+        "Print the result."
+      ],
+      "speaker_notes": "Performance awareness is useful for production. The script lives in `scripts/benchmark_inference.py`.\n\n```python\n# scripts/benchmark_inference.py\nimport time\nfrom pathlib import Path\nimport torch\nfrom transformers import AutoTokenizer, AutoModelForSequenceClassification\n\nMODEL_DIR = Path(\"model\")\nTEXT = \"This is a benchmark sentence.\"\n\ntokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)\nmodel = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)\nmodel.eval()\ninputs = tokenizer(TEXT, return_tensors=\"pt\", truncation=True, padding=\"max_length\", max_length=128)\n\n# Warm‑up\nfor _ in range(5):\n    _ = model(**inputs)\n\nstart = time.time()\nfor _ in range(100):\n    _ = model(**inputs)\nelapsed = time.time() - start\nprint(f\"Average inference time: {elapsed/100*1000:.2f} ms\")\n```\n\nRunning the script gives a quick latency estimate.",
+      "code": null,
+      "files_touched": [
+        "scripts/benchmark_inference.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 24,
+      "title": "Wrap up and next steps",
+      "goal": "Summarise what was built and suggest extensions (e.g., multi‑GPU, hyper‑parameter sweep).",
+      "bullets": [
+        "Recap the CLI tools and test coverage.",
+        "Mention possible improvements: early stopping, Optuna integration, Dockerisation.",
+        "Encourage the learner to publish the package to PyPI."
+      ],
+      "speaker_notes": "Congratulations! You now have a fully‑featured, test‑covered, type‑checked CLI for custom text classification. You can extend it with early stopping, hyper‑parameter optimisation, or containerise it for deployment. If you found this tutorial helpful, give it a thumbs‑up and subscribe for more advanced projects.\n\nThat’s a wrap—happy coding!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    }
+  ],
+  "outro_transcript": "Thanks for watching! We’ve built a production‑ready, test‑covered, type‑checked CLI for custom text classification. Feel free to fork the repo, add early stopping, hyper‑parameter tuning, or Docker support. If you enjoyed the tutorial, hit the like button, subscribe, and let me know in the comments what you’d like to see next. Happy coding!",
+  "final_project_code": "# --- pyproject.toml ---\n[project]\nname = \"custom_text_classifier\"\nversion = \"0.1.0\"\ndescription = \"CLI tool to train and serve a custom text classification model.\"\nrequires-python = \">=3.12,<4.0\"\nlicense = {text = \"MIT\"}\ndependencies = [\n    \"torch>=2.2,<3.0\",\n    \"transformers>=4.40,<5.0\",\n    \"pandas>=2.2,<3.0\",\n    \"scikit-learn>=1.5,<2.0\",\n    \"tqdm>=4.66,<5.0\",\n]\n\n[project.optional-dependencies]\ndev = [\n    \"pytest>=8.2,<9.0\",\n    \"mypy>=1.10,<2.0\",\n]\n\n[build-system]\nrequires = [\"setuptools>=70.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project.scripts]\ntrain-model = \"custom_text_classifier.train:cli_entrypoint\"\ninfer-model = \"custom_text_classifier.infer:main\"\n\n# --- README.md ---\n# Custom Text Classifier\n\n## Installation\n```bash\npython -m venv .venv\nsource .venv/bin/activate\npip install -e .\n```\n\n## Training\n```bash\ntrain-model \\\n  --train-path data/train.csv \\\n  --val-path data/val.csv \\\n  --model-name distilbert-base-uncased \\\n  --epochs 3 \\\n  --batch-size 32 \\\n  --output-dir model\n```\n\n## Inference\n```bash\ninfer-model --model-dir model --text \"I love this product!\"\n```\n\nThe CSV must contain two columns: `text` and `label`.\n\n# --- src/custom_text_classifier/__init__.py ---\n\"\"\"Top‑level package for the custom text classifier project.\"\"\"\n\n__all__ = []\n\n# --- src/custom_text_classifier/config.py ---\nfrom __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom pathlib import Path\n\n@dataclass(frozen=True)\nclass TrainConfig:\n    train_path: Path\n    val_path: Path | None = None\n    model_name: str = \"distilbert-base-uncased\"\n    num_epochs: int = 3\n    batch_size: int = 32\n    learning_rate: float = 2e-5\n    max_length: int = 128\n    output_dir: Path = Path(\"model\")\n    seed: int = 42\n\n# --- src/custom_text_classifier/dataset.py ---\nfrom __future__ import annotations\n\nimport pandas as pd\nfrom pathlib import Path\nfrom typing import Dict\n\nimport torch\nfrom torch.utils.data import Dataset\nfrom transformers import AutoTokenizer\n\nclass TextClassificationDataset(Dataset):\n    def __init__(self, csv_path: Path, tokenizer: AutoTokenizer, max_length: int = 128):\n        self.df = pd.read_csv(csv_path)\n        if not {'text', 'label'}.issubset(self.df.columns):\n            raise ValueError(\"CSV must contain 'text' and 'label' columns\")\n        self.tokenizer = tokenizer\n        self.max_length = max_length\n        self.label2id: Dict[str, int] = {lbl: idx for idx, lbl in enumerate(sorted(self.df['label'].unique()))}\n        self.id2label = {idx: lbl for lbl, idx in self.label2id.items()}\n        self.labels = self.df['label'].map(self.label2id).tolist()\n        self.texts = self.df['text'].tolist()\n\n    def __len__(self) -> int:\n        return len(self.texts)\n\n    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:\n        text = self.texts[idx]\n        label = self.labels[idx]\n        encoding = self.tokenizer(\n            text,\n            truncation=True,\n            padding='max_length',\n            max_length=self.max_length,\n            return_tensors='pt',\n        )\n        item = {k: v.squeeze(0) for k, v in encoding.items()}\n        item['labels'] = torch.tensor(label, dtype=torch.long)\n        return item\n\n# --- src/custom_text_classifier/model.py ---\nfrom __future__ import annotations\n\nfrom transformers import AutoConfig, AutoModelForSequenceClassification\n\nclass Classifier:\n    def __init__(self, model_name: str, num_labels: int):\n        config = AutoConfig.from_pretrained(model_name, num_labels=num_labels)\n        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)\n\n    def __call__(self, **batch):\n        return self.model(**batch)\n\n# --- src/custom_text_classifier/train.py ---\nfrom __future__ import annotations\n\nimport argparse\nimport json\nimport logging\nimport random\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\nimport torch\nfrom sklearn.metrics import accuracy_score, f1_score\nfrom torch.utils.data import DataLoader\nfrom tqdm.auto import tqdm\nfrom transformers import AutoTokenizer, get_linear_schedule_with_warmup\n\nfrom .config import TrainConfig\nfrom .dataset import TextClassificationDataset\nfrom .model import Classifier\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s - %(levelname)s - %(message)s\")\nlogger = logging.getLogger(__name__)\n\ndef parse_args() -> TrainConfig:\n    parser = argparse.ArgumentParser(description=\"Train a custom text classification model.\")\n    parser.add_argument(\"--train-path\", type=Path, required=True, help=\"Path to training CSV.\")\n    parser.add_argument(\"--val-path\", type=Path, help=\"Optional validation CSV.\")\n    parser.add_argument(\"--model-name\", default=\"distilbert-base-uncased\", help=\"Pretrained model identifier.\")\n    parser.add_argument(\"--epochs\", type=int, default=3)\n    parser.add_argument(\"--batch-size\", type=int, default=32)\n    parser.add_argument(\"--lr\", type=float, default=2e-5)\n    parser.add_argument(\"--max-length\", type=int, default=128)\n    parser.add_argument(\"--output-dir\", type=Path, default=Path(\"model\"))\n    args = parser.parse_args()\n    return TrainConfig(\n        train_path=args.train_path,\n        val_path=args.val_path,\n        model_name=args.model_name,\n        num_epochs=args.epochs,\n        batch_size=args.batch_size,\n        learning_rate=args.lr,\n        max_length=args.max_length,\n        output_dir=args.output_dir,\n    )\n\ndef main() -> None:\n    config = parse_args()\n    # Set seeds for reproducibility\n    torch.manual_seed(config.seed)\n    random.seed(config.seed)\n    np.random.seed(config.seed)\n\n    tokenizer = AutoTokenizer.from_pretrained(config.model_name, use_fast=True)\n    train_dataset = TextClassificationDataset(config.train_path, tokenizer, config.max_length)\n    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)\n    val_loader = None\n    if config.val_path:\n        val_dataset = TextClassificationDataset(config.val_path, tokenizer, config.max_length)\n        val_loader = DataLoader(val_dataset, batch_size=config.batch_size)\n\n    num_labels = len(train_dataset.label2id)\n    classifier = Classifier(config.model_name, num_labels)\n    model = classifier.model\n    model.train()\n\n    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)\n    total_steps = len(train_loader) * config.num_epochs\n    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)\n\n    for epoch in range(1, config.num_epochs + 1):\n        model.train()\n        epoch_loss = 0.0\n        all_preds = []\n        all_labels = []\n        progress = tqdm(train_loader, desc=f\"Epoch {epoch}/{config.num_epochs}\")\n        for batch in progress:\n            batch = {k: v for k, v in batch.items()}\n            outputs = model(**batch)\n            loss = outputs.loss\n            loss.backward()\n            optimizer.step()\n            scheduler.step()\n            optimizer.zero_grad()\n            epoch_loss += loss.item()\n            logits = outputs.logits.detach()\n            preds = torch.argmax(logits, dim=1).cpu().tolist()\n            all_preds.extend(preds)\n            all_labels.extend(batch[\"labels\"].cpu().tolist())\n            progress.set_postfix(loss=loss.item())\n        avg_loss = epoch_loss / len(train_loader)\n        acc = accuracy_score(all_labels, all_preds)\n        f1 = f1_score(all_labels, all_preds, average=\"macro\")\n        logger.info(f\"Epoch {epoch} – loss: {avg_loss:.4f} – acc: {acc:.4f} – f1: {f1:.4f}\")\n\n        if val_loader:\n            model.eval()\n            val_preds, val_labels = [], []\n            with torch.no_grad():\n                for batch in tqdm(val_loader, desc=\"Validation\"):\n                    batch = {k: v for k, v in batch.items()}\n                    outputs = model(**batch)\n                    logits = outputs.logits\n                    preds = torch.argmax(logits, dim=1).cpu().tolist()\n                    val_preds.extend(preds)\n                    val_labels.extend(batch[\"labels\"].cpu().tolist())\n            val_acc = accuracy_score(val_labels, val_preds)\n            val_f1 = f1_score(val_labels, val_preds, average=\"macro\")\n            logger.info(f\"Validation – acc: {val_acc:.4f} – f1: {val_f1:.4f}\")\n\n    # Save artifacts\n    config.output_dir.mkdir(parents=True, exist_ok=True)\n    model.save_pretrained(config.output_dir)\n    tokenizer.save_pretrained(config.output_dir)\n    label_map_path = config.output_dir / \"label_map.json\"\n    with open(label_map_path, \"w\", encoding=\"utf-8\") as f:\n        json.dump(train_dataset.id2label, f, ensure_ascii=False, indent=2)\n    logger.info(f\"Model, tokenizer and label map saved to {config.output_dir}\")\n\ndef cli_entrypoint() -> None:\n    try:\n        main()\n    except Exception as exc:\n        logger.exception(\"Training failed: %s\", exc)\n        sys.exit(1)\n\nif __name__ == \"__main__\":\n    cli_entrypoint()\n\n# --- src/custom_text_classifier/infer.py ---\nfrom __future__ import annotations\n\nimport argparse\nimport json\nfrom pathlib import Path\n\nimport torch\nfrom transformers import AutoTokenizer, AutoModelForSequenceClassification\n\ndef parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(description=\"Run inference with a saved custom classifier.\")\n    parser.add_argument(\"--model-dir\", type=Path, required=True, help=\"Directory containing model, tokenizer and label_map.json\")\n    parser.add_argument(\"--text\", type=str, required=True, help=\"Input text to classify\")\n    parser.add_argument(\"--max-length\", type=int, default=128)\n    return parser.parse_args()\n\ndef main() -> None:\n    args = parse_args()\n    tokenizer = AutoTokenizer.from_pretrained(args.model_dir, use_fast=True)\n    model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)\n    model.eval()\n    with open(args.model_dir / \"label_map.json\", \"r\", encoding=\"utf-8\") as f:\n        id2label = json.load(f)\n    inputs = tokenizer(\n        args.text,\n        truncation=True,\n        padding=\"max_length\",\n        max_length=args.max_length,\n        return_tensors=\"pt\",\n    )\n    with torch.no_grad():\n        outputs = model(**inputs)\n        pred_id = torch.argmax(outputs.logits, dim=1).item()\n    print(id2label[str(pred_id)])\n\nif __name__ == \"__main__\":\n    main()\n\n# --- tests/test_dataset.py ---\nfrom pathlib import Path\nimport pandas as pd\nimport pytest\nfrom custom_text_classifier.dataset import TextClassificationDataset\nfrom transformers import AutoTokenizer\n\n@pytest.fixture\ndef tiny_csv(tmp_path: Path) -> Path:\n    df = pd.DataFrame({\"text\": [\"hello world\", \"goodbye\"], \"label\": [\"pos\", \"neg\"]})\n    csv_path = tmp_path / \"data.csv\"\n    df.to_csv(csv_path, index=False)\n    return csv_path\n\ndef test_dataset_loads(tiny_csv: Path) -> None:\n    tokenizer = AutoTokenizer.from_pretrained(\"distilbert-base-uncased\", use_fast=True)\n    ds = TextClassificationDataset(tiny_csv, tokenizer, max_length=16)\n    assert len(ds) == 2\n    assert ds.label2id == {\"neg\": 0, \"pos\": 1}\n    sample = ds[0]\n    assert \"input_ids\" in sample and sample[\"input_ids\"].shape[0] == 16\n    assert isinstance(sample[\"labels\"].item(), int)\n\n# --- tests/test_train.py ---\nimport shutil\nfrom pathlib import Path\nimport pytest\nfrom custom_text_classifier.config import TrainConfig\n\ndef test_training_runs(tiny_csv, tmp_path: Path) -> None:\n    output_dir = tmp_path / \"model\"\n    config = TrainConfig(\n        train_path=tiny_csv,\n        val_path=None,\n        model_name=\"distilbert-base-uncased\",\n        num_epochs=1,\n        batch_size=2,\n        learning_rate=5e-5,\n        max_length=32,\n        output_dir=output_dir,\n    )\n    def fake_parse_args() -> TrainConfig:\n        return config\n    import custom_text_classifier.train as train_mod\n    train_mod.parse_args = fake_parse_args\n    train_mod.main()\n    assert (output_dir / \"pytorch_model.bin\").exists()\n    assert (output_dir / \"label_map.json\").exists()\n    shutil.rmtree(output_dir)\n\n# --- tests/test_infer.py ---\nimport subprocess\nimport sys\nfrom pathlib import Path\nimport pytest\n\ndef test_inference_on_tiny_model(tmp_path: Path, tiny_csv):\n    model_dir = tmp_path / \"model\"\n    # Train tiny model first\n    from custom_text_classifier.train import main as train_main\n    from custom_text_classifier.config import TrainConfig\n    config = TrainConfig(\n        train_path=tiny_csv,\n        val_path=None,\n        model_name=\"distilbert-base-uncased\",\n        num_epochs=1,\n        batch_size=2,\n        learning_rate=5e-5,\n        max_length=32,\n        output_dir=model_dir,\n    )\n    def fake_parse():\n        return config\n    import custom_text_classifier.train as train_mod\n    train_mod.parse_args = fake_parse\n    train_mod.main()\n    # Run inference CLI\n    result = subprocess.run(\n        [sys.executable, \"-m\", \"custom_text_classifier.infer\", \"--model-dir\", str(model_dir), \"--text\", \"hello world\"],\n        capture_output=True,\n        text=True,\n    )\n    assert result.returncode == 0\n    predicted = result.stdout.strip()\n    assert predicted in {\"pos\", \"neg\"}\n\n# --- mypy.ini ---\n[mypy]\npython_version = 3.12\nstrict = True\nexclude = tests\n\n# --- scripts/type_check.sh ---\n#!/usr/bin/env bash\npython -m mypy src\n\n# --- scripts/build_wheel.sh ---\n#!/usr/bin/env bash\npython -m pip install --upgrade build\npython -m build --sdist --wheel\n\n# --- scripts/benchmark_inference.py ---\nimport time\nfrom pathlib import Path\nimport torch\nfrom transformers import AutoTokenizer, AutoModelForSequenceClassification\n\nMODEL_DIR = Path(\"model\")\nTEXT = \"This is a benchmark sentence.\"\n\ntokenizer = AutoTokenizer.from_pretrained(MODEL_DIR, use_fast=True)\nmodel = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)\nmodel.eval()\ninputs = tokenizer(TEXT, return_tensors=\"pt\", truncation=True, padding=\"max_length\", max_length=128)\n# Warm‑up\nfor _ in range(5):\n    _ = model(**inputs)\nstart = time.time()\nfor _ in range(100):\n    _ = model(**inputs)\nelapsed = time.time() - start\nprint(f\"Average inference time: {elapsed/100*1000:.2f} ms\")\n\n# --- .github/workflows/ci.yml ---\nname: CI\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n      - name: Install dependencies\n        run: |\n          python -m venv .venv\n          source .venv/bin/activate\n          pip install --upgrade pip\n          pip install -e .[dev]\n      - name: Run tests\n        run: |\n          source .venv/bin/activate\n          pytest -q\n      - name: Type check\n        run: |\n          source .venv/bin/activate\n          python -m mypy src\n",
+  "how_to_run": "```bash\n# 1️⃣ Clone the repo and create a virtual environment\ngit clone https://github.com/yourname/custom_text_classifier.git\ncd custom_text_classifier\npython -m venv .venv\nsource .venv/bin/activate\n\n# 2️⃣ Install the package with development extras\npip install -e .[dev]\n\n# 3️⃣ Prepare a CSV `train.csv` with columns `text` and `label`\n#    (optional `val.csv` for validation)\n\n# 4️⃣ Train the model\ntrain-model \\\n  --train-path train.csv \\\n  --val-path val.csv \\\n  --model-name distilbert-base-uncased \\\n  --epochs 3 \\\n  --batch-size 32 \\\n  --output-dir model\n\n# 5️⃣ Run inference on a new sentence\ninfer-model --model-dir model --text \"I love this product!\"\n```\n\nThe `model/` folder will contain `pytorch_model.bin`, `config.json`, the tokenizer files and `label_map.json`. Use the `scripts/benchmark_inference.py` to measure latency, and run `pytest -q` to execute the test suite.",
+  "challenges": [
+    {
+      "title": "Add Early Stopping",
+      "description": "Modify the training loop to stop early if validation loss does not improve for a configurable number of epochs.",
+      "build_process": "1. Extend `TrainConfig` with `early_stopping_patience: int = 2`.\n2. Track the best validation loss after each epoch.\n3. If the loss hasn't improved for `patience` epochs, break the training loop.\n4. Save the best model checkpoint separately (e.g., `best_model/`).",
+      "solution_code": "```python\n# Add to TrainConfig in config.py\nearly_stopping_patience: int = 2\n\n# Inside the training loop in train.py (replace the epoch loop)\nbest_val_loss = float('inf')\npatience_counter = 0\nfor epoch in range(1, config.num_epochs + 1):\n    # ... training part unchanged ...\n    if val_loader:\n        model.eval()\n        val_losses = []\n        with torch.no_grad():\n            for batch in val_loader:\n                batch = {k: v for k, v in batch.items()}\n                outputs = model(**batch)\n                val_losses.append(outputs.loss.item())\n        avg_val_loss = sum(val_losses) / len(val_losses)\n        logger.info(f\"Validation loss: {avg_val_loss:.4f}\")\n        if avg_val_loss < best_val_loss:\n            best_val_loss = avg_val_loss\n            patience_counter = 0\n            # Save best checkpoint\n            best_dir = config.output_dir / \"best_model\"\n            best_dir.mkdir(parents=True, exist_ok=True)\n            model.save_pretrained(best_dir)\n            tokenizer.save_pretrained(best_dir)\n            with open(best_dir / \"label_map.json\", \"w\", encoding=\"utf-8\") as f:\n                json.dump(train_dataset.id2label, f, ensure_ascii=False, indent=2)\n            logger.info(\"New best model saved.\")\n        else:\n            patience_counter += 1\n            logger.info(f\"No improvement, patience {patience_counter}/{config.early_stopping_patience}\")\n            if patience_counter >= config.early_stopping_patience:\n                logger.info(\"Early stopping triggered.\")\n                break\n```\n",
+      "solution_walkthrough": "We first extend the configuration with a `early_stopping_patience` field so the user can control how many epochs without improvement are tolerated. Inside the epoch loop we compute the average validation loss after each epoch. If the current loss is lower than the best seen so far, we reset the patience counter, update `best_val_loss`, and write a checkpoint to `best_model/`. If the loss does not improve, we increment the counter; once it reaches the patience limit we break out of the training loop, effectively stopping early. This logic keeps the training fast on noisy datasets while still preserving the best performing model.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": {
+    "passed": true,
+    "score": 100.0,
+    "reviews": [
+      {
+        "agent": "structure",
+        "passed": true,
+        "summary": "Structure OK",
+        "findings": []
+      },
+      {
+        "agent": "practices",
+        "passed": true,
+        "summary": "Practices OK",
+        "findings": []
+      },
+      {
+        "agent": "code",
+        "passed": false,
+        "summary": "1 code finding(s), 1 error(s)",
+        "findings": [
+          {
+            "agent": "code",
+            "severity": "info",
+            "code": "UNKNOWN",
+            "message": "agent='code' severity='error' code='TOO_FEW_CODE_STEPS' message='Only 0/24 steps include code' location='steps' suggestion='Most steps should ship code into the project'",
+            "location": "",
+            "suggestion": ""
+          }
+        ]
+      }
+    ],
+    "repair": {
+      "applied": true,
+      "summary": "Applied 3 deterministic fix(es)",
+      "actions": [
+        {
+          "action": "add_repo_layout_entry",
+          "location": "repo_layout",
+          "detail": "src/__init__.py"
+        },
+        {
+          "action": "add_repo_layout_entry",
+          "location": "repo_layout",
+          "detail": "tests/__init__.py"
+        },
+        {
+          "action": "expand_best_practices",
+          "location": "best_practices",
+          "detail": "7 items"
+        }
+      ],
+      "remaining_issues": []
+    },
+    "findings_count": 1,
+    "error_count": 0,
+    "warning_count": 0
+  }
+}

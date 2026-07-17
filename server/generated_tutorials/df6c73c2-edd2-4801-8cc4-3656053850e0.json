@@ -1,0 +1,327 @@
+{
+  "id": "df6c73c2-edd2-4801-8cc4-3656053850e0",
+  "title": "Building a Custom K-Nearest Neighbors Classifier from Scratch",
+  "tagline": "Learn the fundamentals of KNN by coding your own model in Python.",
+  "description": "In this tutorial we will build a tiny, pip‑installable Python package that implements a K‑Nearest Neighbors (KNN) classifier from the ground up. You’ll see how to compute distances, select neighbours, perform majority voting, and write clean, type‑hinted code with unit tests.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "You need a simple, dependency‑light classifier to experiment with the classic K‑Nearest Neighbors algorithm, but you want to understand how it works under the hood rather than using a black‑box library.",
+  "end_state": "A ready‑to‑install Python package `knn` containing a `KNNClassifier` class with `fit` and `predict` methods, fully typed, documented, and covered by pytest unit tests.",
+  "prerequisites": [
+    "Python 3.12 or newer installed",
+    "Basic familiarity with functions and classes",
+    "Ability to run `pip install -e .` in a virtual environment"
+  ],
+  "learning_outcomes": [
+    "Implement Euclidean distance calculations with NumPy",
+    "Select the k nearest training points for a query",
+    "Perform majority voting to produce class predictions",
+    "Write clean, type‑annotated Python code",
+    "Create and run unit tests with pytest"
+  ],
+  "repo_layout": [
+    "{'root_files': ['pyproject.toml', 'README.md'], 'src': {'knn': ['__init__.py', 'model.py']}, 'tests': ['test_knn.py']}"
+  ],
+  "stack": [
+    {
+      "name": "python",
+      "version": ">=3.12",
+      "purpose": "runtime"
+    },
+    {
+      "name": "numpy",
+      "version": ">=1.26",
+      "purpose": "numerical operations"
+    },
+    {
+      "name": "pytest",
+      "version": ">=7.4",
+      "purpose": "testing"
+    },
+    {
+      "name": "typing-extensions",
+      "version": ">=4.8",
+      "purpose": "advanced typing support"
+    }
+  ],
+  "best_practices": [
+    "Use explicit type hints for all public functions",
+    "Validate inputs and raise informative errors",
+    "Keep functions small and single‑purpose",
+    "Write docstrings in NumPy style",
+    "Never use mutable default arguments",
+    "Run tests after each logical change"
+  ],
+  "intro_transcript": "Hey everyone! Welcome back to ProjectPalAI. Today we’re going to demystify one of the classic machine‑learning algorithms – K‑Nearest Neighbors – by building our own implementation from scratch. By the end of this video you’ll have a tiny, reusable Python package that you can import, fit on any dataset, and use to predict new points. No scikit‑learn magic, just plain NumPy and good old Python. Let’s jump right in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Create project scaffold",
+      "goal": "Set up the repository layout, pyproject.toml and README so we have a proper Python package.",
+      "bullets": [
+        "Initialize a Git repo (optional)",
+        "Create pyproject.toml with build system and dependencies",
+        "Add a minimal README with project description",
+        "Create src/knn package folder",
+        "Create empty tests folder"
+      ],
+      "speaker_notes": "Alright, first things first – we need a clean folder structure. Open your terminal, make a new directory called `knn_tutorial`, `cd` into it, and run `git init` if you like version control. Inside the root we’ll create two files: `pyproject.toml` and `README.md`. The `pyproject.toml` tells pip how to build the package and lists the libraries we depend on – in our case just NumPy and typing‑extensions. The README will later hold the usage example, but for now we’ll just write a short intro. Then we create a `src` folder, and inside it a package folder called `knn`. Finally we add a `tests` directory where pytest will look for our test suite. This scaffold is the foundation for everything we’ll add later.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_1.py",
+        "code": "# pyproject.toml and README.md will be created in later steps – see the final_project_code section for their exact contents.",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "pyproject.toml",
+        "README.md",
+        "src/knn/__init__.py",
+        "tests/"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Add package init and model skeleton",
+      "goal": "Create __init__.py that exports KNNClassifier and a model.py file with class skeleton.",
+      "bullets": [
+        "Define __all__ in __init__.py",
+        "Write a KNNClassifier class with __init__, fit, and predict signatures",
+        "Add type hints for parameters and return values"
+      ],
+      "speaker_notes": "Now that the folder exists we can add the first bits of code. In `src/knn/__init__.py` we simply import the class from the model module and expose it via `__all__`. This makes `from knn import KNNClassifier` work nicely. In `src/knn/model.py` we write a bare‑bones class. The constructor takes the number of neighbours `k` – defaulting to 3 – and stores it. The `fit` method will later memorize the training data, and `predict` will later return predictions. At this point we only write the method signatures and `pass` statements so the file is syntactically valid. This step gives us a concrete module to edit in the next phases.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_2.py",
+        "code": "# src/knn/__init__.py\n\"\"\"knn package exposing KNNClassifier.\"\"\"\n\nfrom .model import KNNClassifier\n\n__all__ = [\"KNNClassifier\"]\n\n# src/knn/model.py\n\"\"\"Implementation of a simple K‑Nearest Neighbours classifier.\n\nOnly NumPy is used – no scikit‑learn magic – so you can see every step.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport numpy as np\nfrom typing import Any\n\n\nclass KNNClassifier:\n    \"\"\"K‑Nearest Neighbours classifier.\n\n    Parameters\n    ----------\n    k : int, default 3\n        Number of neighbours to use for voting.\n    \"\"\"\n\n    def __init__(self, k: int = 3) -> None:\n        self.k = k\n        self._X_train: np.ndarray | None = None\n        self._y_train: np.ndarray | None = None\n\n    def fit(self, X: np.ndarray, y: np.ndarray) -> \"KNNClassifier\":\n        \"\"\"Store the training data.\n\n        Returns\n        -------\n        self\n        \"\"\"\n        pass\n\n    def predict(self, X: np.ndarray) -> np.ndarray:\n        \"\"\"Predict class labels for the supplied samples.\n\n        Returns\n        -------\n        np.ndarray\n            Predicted class for each row in ``X``.\n        \"\"\"\n        pass\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/knn/__init__.py",
+        "src/knn/model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Implement Euclidean distance helper",
+      "goal": "Write a private function _euclidean_distance that computes the distance between two 2‑D arrays.",
+      "bullets": [
+        "Accept two ndarrays X (n×d) and Y (m×d)",
+        "Return a distance matrix of shape (n, m)",
+        "Use NumPy broadcasting for efficiency"
+      ],
+      "speaker_notes": "Distance computation is the heart of K‑Nearest Neighbours. We’ll implement a helper called `_euclidean_distance`. It takes two 2‑D arrays – the first representing the query points and the second the training points – and returns a matrix where entry (i, j) is the Euclidean distance between query i and training point j. By using NumPy broadcasting we avoid explicit Python loops and keep the code fast. This function will be used later by both the neighbour‑search and the prediction logic. After writing it we’ll add a quick docstring and type hints.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_3.py",
+        "code": "# src/knn/model.py (add below imports)\n\ndef _euclidean_distance(X: np.ndarray, Y: np.ndarray) -> np.ndarray:\n    \"\"\"Return the Euclidean distance matrix between rows of ``X`` and ``Y``.\n\n    Parameters\n    ----------\n    X : np.ndarray, shape (n_samples_X, n_features)\n    Y : np.ndarray, shape (n_samples_Y, n_features)\n\n    Returns\n    -------\n    np.ndarray, shape (n_samples_X, n_samples_Y)\n        ``dist[i, j]`` is the Euclidean distance between ``X[i]`` and ``Y[j]``.\n    \"\"\"\n    if X.ndim != 2 or Y.ndim != 2:\n        raise ValueError(\"Both X and Y must be 2‑dimensional arrays.\")\n    # (n,1,d) - (1,m,d) -> (n,m,d) then sum over d and sqrt\n    diff = X[:, np.newaxis, :] - Y[np.newaxis, :, :]\n    return np.sqrt(np.sum(diff ** 2, axis=2))\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/knn/model.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Store training data in fit",
+      "goal": "Implement fit method that simply memorizes the training features and labels.",
+      "bullets": [
+        "Validate that X and y have compatible shapes",
+        "Convert inputs to ``np.ndarray`` with ``dtype=float`` for X and ``dtype=object`` for y",
+        "Assign to private attributes ``_X_train`` and ``_y_train``"
+      ],
+      "speaker_notes": "The fit method for a K‑Nearest Neighbours model does not perform any learning – it just stores the data. We’ll add a few safety checks: X must be a 2‑D array, y must be 1‑D, and the number of rows must match. Then we coerce both arguments to NumPy arrays and keep them as private attributes. Returning ``self`` enables method chaining, a common scikit‑learn pattern. This step completes the “training” phase of our classifier.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_4.py",
+        "code": "# src/knn/model.py (replace the pass in fit)\n    def fit(self, X: np.ndarray, y: np.ndarray) -> \"KNNClassifier\":\n        \"\"\"Store the training data.\n\n        Parameters\n        ----------\n        X : np.ndarray, shape (n_samples, n_features)\n            Training feature matrix.\n        y : np.ndarray, shape (n_samples,)\n            Target class labels.\n\n        Returns\n        -------\n        self\n        \"\"\"\n        X = np.asarray(X, dtype=float)\n        y = np.asarray(y, dtype=object)\n        if X.ndim != 2:\n            raise ValueError(\"X must be a 2‑dimensional array (samples × features).\")\n        if y.ndim != 1:\n            raise ValueError(\"y must be a 1‑dimensional array of labels.\")\n        if X.shape[0] != y.shape[0]:\n            raise ValueError(\"Number of samples in X and y must match.\")\n        self._X_train = X\n        self._y_train = y\n        return self\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/knn/model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Find the k nearest neighbours",
+      "goal": "Create a private method _get_neighbors that returns the indices of the k closest training points for each query point.",
+      "bullets": [
+        "Compute distances with ``_euclidean_distance``",
+        "Use ``np.argsort`` along the training‑axis to rank neighbours",
+        "Slice the first ``k`` indices for each query"
+      ],
+      "speaker_notes": "Now we need a way to ask the model: “which training points are closest to this new sample?” The private method ``_get_neighbors`` does exactly that. It calls the distance helper we wrote earlier, sorts each row of the distance matrix, and returns the column indices of the ``k`` smallest distances. This method returns a 2‑D integer array of shape (n_queries, k) – each row lists the neighbour indices for a query point. Keeping this logic isolated makes ``predict`` much easier to read.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_5.py",
+        "code": "# src/knn/model.py (add below the class definition)\n    def _get_neighbors(self, X: np.ndarray) -> np.ndarray:\n        \"\"\"Return the indices of the ``k`` nearest neighbours for each row in ``X``.\n\n        Parameters\n        ----------\n        X : np.ndarray, shape (n_queries, n_features)\n\n        Returns\n        -------\n        np.ndarray, shape (n_queries, k)\n            Indices of the nearest neighbours in the training set.\n        \"\"\"\n        if self._X_train is None or self._y_train is None:\n            raise ValueError(\"Model has not been fitted yet.\")\n        distances = _euclidean_distance(X, self._X_train)\n        # argsort returns indices that would sort each row\n        neighbor_idx = np.argsort(distances, axis=1)[:, : self.k]\n        return neighbor_idx\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/knn/model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Make predictions with majority vote",
+      "goal": "Implement predict method that calls _get_neighbors and returns the most common label among neighbours.",
+      "bullets": [
+        "Call ``_get_neighbors`` to obtain neighbour indices",
+        "Gather the neighbour labels from ``_y_train``",
+        "Use ``collections.Counter`` to find the most frequent label per query",
+        "Return a NumPy array of predictions"
+      ],
+      "speaker_notes": "With neighbour indices in hand, prediction becomes a simple voting problem. For each query we look up the labels of its ``k`` neighbours, count how many times each class appears, and pick the label with the highest count – the mode. In the rare case of a tie, ``Counter.most_common`` returns the first encountered, which is fine for a beginner tutorial. The method finally returns a 1‑D NumPy array of predictions that matches the length of the input ``X``.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_6.py",
+        "code": "# src/knn/model.py (replace the pass in predict)\n    def predict(self, X: np.ndarray) -> np.ndarray:\n        \"\"\"Predict class labels for the supplied samples.\n\n        Parameters\n        ----------\n        X : np.ndarray, shape (n_queries, n_features)\n            Samples to classify.\n\n        Returns\n        -------\n        np.ndarray, shape (n_queries,)\n            Predicted class for each sample.\n        \"\"\"\n        X = np.asarray(X, dtype=float)\n        if X.ndim != 2:\n            raise ValueError(\"X must be a 2‑dimensional array (samples × features).\")\n        neighbor_idx = self._get_neighbors(X)\n        # Gather neighbour labels\n        neighbor_labels = self._y_train[neighbor_idx]\n        # Majority vote\n        from collections import Counter\n        predictions = []\n        for labels in neighbor_labels:\n            most_common = Counter(labels).most_common(1)[0][0]\n            predictions.append(most_common)\n        return np.array(predictions, dtype=object)\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/knn/model.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 7,
+      "title": "Add validation, docstrings and type hints",
+      "goal": "Polish the public API with proper documentation, input checks, and type annotations.",
+      "bullets": [
+        "Raise ``ValueError`` for mismatched dimensions in ``fit`` and ``predict``",
+        "Add NumPy‑style docstrings to every public method",
+        "Expose the class via ``__all__`` in ``__init__.py``",
+        "Add ``typing`` imports for clarity"
+      ],
+      "speaker_notes": "At this point the classifier works, but we want it to be production‑ready – even for a small tutorial. We’ll make sure every public method validates its inputs and raises clear errors. The docstrings we added earlier follow the NumPy convention, which many data‑science projects adopt. In ``__init__.py`` we already exported ``KNNClassifier`` via ``__all__``; that makes the public surface explicit. Finally we double‑check that every function and method has a return type annotation, which helps IDEs and static analysers. This step marks a natural checkpoint – the code is now clean, typed, and well‑documented.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_7.py",
+        "code": "# src/knn/__init__.py (already contains __all__)\n# No additional code needed – the file is complete.\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/knn/model.py",
+        "src/knn/__init__.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 8,
+      "title": "Write unit tests",
+      "goal": "Create pytest tests that cover distance calculation, neighbour selection, and full prediction on a tiny dataset.",
+      "bullets": [
+        "Test ``_euclidean_distance`` with a known simple case",
+        "Test ``_get_neighbors`` returns expected indices on a handcrafted matrix",
+        "Test ``predict`` on a tiny 2‑class dataset (e.g., XOR‑like points)",
+        "Run the suite with ``pytest -q``"
+      ],
+      "speaker_notes": "Testing is the safety net that lets us refactor with confidence. We’ll create a file ``tests/test_knn.py`` and write three test functions. The first checks that the distance helper returns the exact numbers we compute by hand. The second builds a tiny training set and asks the model for the three nearest neighbours of a query – we verify the returned indices. The third trains the classifier on a small synthetic dataset and asserts that the predictions match the expected classes. By keeping the tests deterministic we can run them after every change and be sure nothing broke.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_8.py",
+        "code": "# tests/test_knn.py\nimport numpy as np\nimport pytest\nfrom knn import KNNClassifier\n\n\ndef test_euclidean_distance():\n    X = np.array([[0, 0], [1, 1]])\n    Y = np.array([[0, 1], [1, 0]])\n    # Expected distances: sqrt(1) = 1 for all combos\n    expected = np.array([[1.0, 1.0], [1.0, 1.0]])\n    from knn.model import _euclidean_distance\n    np.testing.assert_allclose(_euclidean_distance(X, Y), expected)\n\n\ndef test_get_neighbors():\n    X_train = np.array([[0, 0], [2, 2], [5, 5]])\n    y_train = np.array([0, 1, 1])\n    clf = KNNClassifier(k=2)\n    clf.fit(X_train, y_train)\n    X_query = np.array([[1, 1]])\n    neighbor_idx = clf._get_neighbors(X_query)\n    # The two closest points are indices 0 and 1\n    assert neighbor_idx.shape == (1, 2)\n    assert list(neighbor_idx[0]) == [0, 1]\n\n\ndef test_predict_simple():\n    # Simple 2‑D binary problem\n    X_train = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])\n    y_train = np.array([0, 0, 1, 1])\n    clf = KNNClassifier(k=3)\n    clf.fit(X_train, y_train)\n    X_test = np.array([[0.1, 0.1], [0.9, 0.9]])\n    preds = clf.predict(X_test)\n    # First point is closer to the two 0‑class points → majority 0\n    # Second point is closer to the two 1‑class points → majority 1\n    assert list(preds) == [0, 1]\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "tests/test_knn.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Run tests and fix bugs",
+      "goal": "Execute the test suite, interpret failures, and adjust the implementation until all tests pass.",
+      "bullets": [
+        "Run ``pytest -q`` from the repository root",
+        "Read any traceback – look for assertion errors or shape mismatches",
+        "If ``k`` is larger than the number of training samples, raise a clear error",
+        "Confirm that type hints do not interfere with runtime behavior"
+      ],
+      "speaker_notes": "Now we actually run the tests. In the terminal type ``pytest -q``. If everything is correct you’ll see three passed tests. If a test fails, read the traceback – it will point to the exact line in our code that behaved unexpectedly. Common pitfalls are forgetting to convert inputs to NumPy arrays or mixing up axis ordering when slicing. In this tutorial we also add a guard in ``_get_neighbors`` that raises a ``ValueError`` when ``k`` exceeds the number of training samples – this prevents silent broadcasting errors. After fixing any issues, re‑run the suite until it’s green.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_9.py",
+        "code": "# No new code – just a safety check added earlier in _get_neighbors.\n# Example guard (already implicit because argsort works, but we add explicit check):\n# Inside _get_neighbors, after fitting check:\n# if self.k > self._X_train.shape[0]:\n#     raise ValueError(\"k cannot be larger than the number of training samples.\")\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 10,
+      "title": "Finalize package and usage example",
+      "goal": "Update README with an example of how to import, fit, and predict, and ensure the package can be installed in editable mode.",
+      "bullets": [
+        "Add a short code block showing typical usage",
+        "Explain the ``pip install -e .`` command for development",
+        "Tag this step as the final checkpoint"
+      ],
+      "speaker_notes": "We’re almost done! The last thing we need is a nice README that tells a future user how to get started. We’ll add a code snippet that imports ``KNNClassifier``, fits it on the classic Iris dataset (or a tiny synthetic example), and calls ``predict``. We also remind the viewer to install the package in editable mode with ``pip install -e .`` so that any further changes are instantly reflected. With the README polished, the repository is ready to be shared or pushed to GitHub. This marks our final checkpoint – the project is complete, tested, and documented.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_10.py",
+        "code": "# README.md (excerpt to be added at the bottom)\n\n## Quick start\n```python\nfrom knn import KNNClassifier\nimport numpy as np\n\n# Tiny toy dataset\nX_train = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])\ny_train = np.array([0, 0, 1, 1])\n\nclf = KNNClassifier(k=3)\nclf.fit(X_train, y_train)\n\nX_test = np.array([[0.2, 0.2], [0.8, 0.8]])\nprint(clf.predict(X_test))  # -> array([0, 1])\n```\n\nInstall the package in editable mode while developing:\n```bash\npip install -e .\n```\nNow you can import ``KNNClassifier`` from anywhere in your virtual environment.\n",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "README.md"
+      ],
+      "is_checkpoint": true
+    }
+  ],
+  "outro_transcript": "Congratulations! You’ve just built a fully functional K‑Nearest Neighbours classifier from the ground up, written clean, type‑annotated Python, and verified everything with a test suite. Because the code lives in a proper package, you can install it with ``pip install -e .`` and reuse it in any project – or even publish it to PyPI if you feel adventurous. I hope this walkthrough gave you a deeper intuition for how KNN works under the hood. If you enjoyed the video, give it a thumbs up, subscribe for more project‑based tutorials, and let me know in the comments what algorithm you’d like to see next. Happy coding!",
+  "final_project_code": "# --- pyproject.toml ---\n[build-system]\nrequires = [\"setuptools>=68.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"knn\"\nversion = \"0.1.0\"\ndescription = \"A tiny, pure-Python implementation of the K-Nearest Neighbors classifier.\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"numpy>=1.26\",\n    \"typing-extensions>=4.8\"\n]\nauthors = [{name = \"ProjectPalAI\", email = \"example@example.com\"}]\nreadme = \"README.md\"\nlicense = {text = \"MIT\"}\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n\n[tool.pytest.ini_options]\nminversion = \"7.4\"\naddopts = \"-ra -q\"\ntestpaths = [\"tests\"]\n\n# --- README.md ---\n# KNN Tutorial\n\nA tiny, pure‑Python implementation of the classic **K‑Nearest Neighbours** classifier. The project is intentionally small so you can read every line and understand how the algorithm works under the hood.\n\n## Features\n- No external machine‑learning libraries – only NumPy.\n- Fully type‑annotated and documented.\n- Unit‑tested with pytest.\n- Installable as a regular Python package.\n\n## Installation\n```bash\npython -m venv .venv\nsource .venv/bin/activate  # on Windows use `.venv\\Scripts\\activate`\npip install -e .\n```\n\n## Quick start\n```python\nfrom knn import KNNClassifier\nimport numpy as np\n\n# Tiny toy dataset\nX_train = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])\ny_train = np.array([0, 0, 1, 1])\n\nclf = KNNClassifier(k=3)\nclf.fit(X_train, y_train)\n\nX_test = np.array([[0.2, 0.2], [0.8, 0.8]])\nprint(clf.predict(X_test))  # -> array([0, 1])\n```\n\nInstall the package in editable mode while developing:\n```bash\npip install -e .\n```\nNow you can import ``KNNClassifier`` from anywhere in your virtual environment.\n\n## Running the tests\n```bash\npytest -q\n```\nAll tests should pass.\n\n# --- src/knn/__init__.py ---\n\"\"\"knn package exposing KNNClassifier.\"\"\"\n\nfrom .model import KNNClassifier\n\n__all__ = [\"KNNClassifier\"]\n\n# --- src/knn/model.py ---\n\"\"\"Implementation of a simple K‑Nearest Neighbours classifier.\n\nOnly NumPy is used – no scikit‑learn magic – so you can see every step.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport numpy as np\nfrom collections import Counter\nfrom typing import Any\n\n\ndef _euclidean_distance(X: np.ndarray, Y: np.ndarray) -> np.ndarray:\n    \"\"\"Return the Euclidean distance matrix between rows of ``X`` and ``Y``.\n\n    Parameters\n    ----------\n    X : np.ndarray, shape (n_samples_X, n_features)\n    Y : np.ndarray, shape (n_samples_Y, n_features)\n\n    Returns\n    -------\n    np.ndarray, shape (n_samples_X, n_samples_Y)\n        ``dist[i, j]`` is the Euclidean distance between ``X[i]`` and ``Y[j]``.\n    \"\"\"\n    if X.ndim != 2 or Y.ndim != 2:\n        raise ValueError(\"Both X and Y must be 2‑dimensional arrays.\")\n    diff = X[:, np.newaxis, :] - Y[np.newaxis, :, :]\n    return np.sqrt(np.sum(diff ** 2, axis=2))\n\n\nclass KNNClassifier:\n    \"\"\"K‑Nearest Neighbours classifier.\n\n    Parameters\n    ----------\n    k : int, default 3\n        Number of neighbours to use for voting.\n    \"\"\"\n\n    def __init__(self, k: int = 3) -> None:\n        if k <= 0:\n            raise ValueError(\"k must be a positive integer.\")\n        self.k = k\n        self._X_train: np.ndarray | None = None\n        self._y_train: np.ndarray | None = None\n\n    def fit(self, X: np.ndarray, y: np.ndarray) -> \"KNNClassifier\":\n        \"\"\"Store the training data.\n\n        Parameters\n        ----------\n        X : np.ndarray, shape (n_samples, n_features)\n            Training feature matrix.\n        y : np.ndarray, shape (n_samples,)\n            Target class labels.\n\n        Returns\n        -------\n        self\n        \"\"\"\n        X = np.asarray(X, dtype=float)\n        y = np.asarray(y, dtype=object)\n        if X.ndim != 2:\n            raise ValueError(\"X must be a 2‑dimensional array (samples × features).\")\n        if y.ndim != 1:\n            raise ValueError(\"y must be a 1‑dimensional array of labels.\")\n        if X.shape[0] != y.shape[0]:\n            raise ValueError(\"Number of samples in X and y must match.\")\n        self._X_train = X\n        self._y_train = y\n        return self\n\n    def _get_neighbors(self, X: np.ndarray) -> np.ndarray:\n        \"\"\"Return the indices of the ``k`` nearest neighbours for each row in ``X``.\n\n        Parameters\n        ----------\n        X : np.ndarray, shape (n_queries, n_features)\n\n        Returns\n        -------\n        np.ndarray, shape (n_queries, k)\n            Indices of the nearest neighbours in the training set.\n        \"\"\"\n        if self._X_train is None or self._y_train is None:\n            raise ValueError(\"Model has not been fitted yet.\")\n        if self.k > self._X_train.shape[0]:\n            raise ValueError(\"k cannot be larger than the number of training samples.\")\n        distances = _euclidean_distance(X, self._X_train)\n        neighbor_idx = np.argsort(distances, axis=1)[:, : self.k]\n        return neighbor_idx\n\n    def predict(self, X: np.ndarray) -> np.ndarray:\n        \"\"\"Predict class labels for the supplied samples.\n\n        Parameters\n        ----------\n        X : np.ndarray, shape (n_queries, n_features)\n            Samples to classify.\n\n        Returns\n        -------\n        np.ndarray, shape (n_queries,)\n            Predicted class for each sample.\n        \"\"\"\n        X = np.asarray(X, dtype=float)\n        if X.ndim != 2:\n            raise ValueError(\"X must be a 2‑dimensional array (samples × features).\")\n        neighbor_idx = self._get_neighbors(X)\n        neighbor_labels = self._y_train[neighbor_idx]\n        predictions = []\n        for labels in neighbor_labels:\n            most_common = Counter(labels).most_common(1)[0][0]\n            predictions.append(most_common)\n        return np.array(predictions, dtype=object)\n\n# --- tests/test_knn.py ---\nimport numpy as np\nimport pytest\nfrom knn import KNNClassifier\n\n\ndef test_euclidean_distance():\n    X = np.array([[0, 0], [1, 1]])\n    Y = np.array([[0, 1], [1, 0]])\n    expected = np.array([[1.0, 1.0], [1.0, 1.0]])\n    from knn.model import _euclidean_distance\n    np.testing.assert_allclose(_euclidean_distance(X, Y), expected)\n\n\ndef test_get_neighbors():\n    X_train = np.array([[0, 0], [2, 2], [5, 5]])\n    y_train = np.array([0, 1, 1])\n    clf = KNNClassifier(k=2)\n    clf.fit(X_train, y_train)\n    X_query = np.array([[1, 1]])\n    neighbor_idx = clf._get_neighbors(X_query)\n    assert neighbor_idx.shape == (1, 2)\n    assert list(neighbor_idx[0]) == [0, 1]\n\n\ndef test_predict_simple():\n    X_train = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])\n    y_train = np.array([0, 0, 1, 1])\n    clf = KNNClassifier(k=3)\n    clf.fit(X_train, y_train)\n    X_test = np.array([[0.1, 0.1], [0.9, 0.9]])\n    preds = clf.predict(X_test)\n    assert list(preds) == [0, 1]\n",
+  "how_to_run": "1. Clone the repository or copy the files into a folder.\n2. Create a virtual environment:\n   ```bash\n   python -m venv .venv\n   source .venv/bin/activate   # Windows: .venv\\Scripts\\activate\n   ```\n3. Install the package in editable mode along with test dependencies:\n   ```bash\n   pip install -e .\n   pip install pytest\n   ```\n4. Run the test suite to verify everything works:\n   ```bash\n   pytest -q\n   ```\n5. Use the classifier in your own code as shown in the README.\n",
+  "challenges": [
+    {
+      "title": "Weighted voting based on inverse distance",
+      "description": "Modify the classifier so that nearer neighbours have a larger influence on the vote. Instead of a simple majority, compute a weighted sum where each neighbour contributes 1/distance to its class score.",
+      "build_process": "1. Add a new optional argument ``weights: str = 'uniform'`` to the constructor.\n2. In ``predict`` compute distances to the k neighbours (reuse the distance matrix).\n3. Convert distances to weights using ``1 / (dist + 1e-8)`` to avoid division by zero.\n4. Sum the weights per class and pick the class with the highest total weight.\n5. Update the docstring and add a test that verifies the weighted version gives a different prediction on a crafted example where a distant neighbour would otherwise dominate.\n",
+      "solution_code": "# src/knn/model.py (only the modified parts shown)\n    def __init__(self, k: int = 3, weights: str = \"uniform\") -> None:\n        if k <= 0:\n            raise ValueError(\"k must be a positive integer.\")\n        if weights not in {\"uniform\", \"distance\"}:\n            raise ValueError(\"weights must be 'uniform' or 'distance'.\")\n        self.k = k\n        self.weights = weights\n        self._X_train = None\n        self._y_train = None\n\n    def predict(self, X: np.ndarray) -> np.ndarray:\n        X = np.asarray(X, dtype=float)\n        if X.ndim != 2:\n            raise ValueError(\"X must be a 2‑dimensional array (samples × features).\")\n        distances = _euclidean_distance(X, self._X_train)\n        neighbor_idx = np.argsort(distances, axis=1)[:, : self.k]\n        neighbor_labels = self._y_train[neighbor_idx]\n        predictions = []\n        for i, labels in enumerate(neighbor_labels):\n            if self.weights == \"uniform\":\n                most_common = Counter(labels).most_common(1)[0][0]\n                predictions.append(most_common)\n            else:  # distance weighting\n                dists = distances[i, neighbor_idx[i]]\n                w = 1.0 / (dists + 1e-8)\n                class_weights: dict[Any, float] = {}\n                for lbl, weight in zip(labels, w):\n                    class_weights[lbl] = class_weights.get(lbl, 0.0) + weight\n                # choose class with highest accumulated weight\n                predictions.append(max(class_weights.items(), key=lambda kv: kv[1])[0])\n        return np.array(predictions, dtype=object)\n\n# tests/test_knn_weighted.py (new file)\nimport numpy as np\nfrom knn import KNNClassifier\n\ndef test_weighted_prediction():\n    X_train = np.array([[0, 0], [0, 10]])\n    y_train = np.array([0, 1])\n    clf = KNNClassifier(k=2, weights=\"distance\")\n    clf.fit(X_train, y_train)\n    # Query point is much closer to class 0\n    X_test = np.array([[0, 1]])\n    pred = clf.predict(X_test)\n    assert pred[0] == 0\n",
+      "solution_walkthrough": "We added a ``weights`` parameter to the constructor that can be either ``\"uniform\"`` (the original behavior) or ``\"distance\"`` for inverse‑distance weighting. In ``predict`` we first compute the full distance matrix, then select the k nearest neighbours as before. If ``weights`` is ``\"uniform\"`` we keep the simple majority vote. For the distance case we extract the distances of the selected neighbours, compute ``1/(dist+1e-8)`` to avoid division by zero, and accumulate these weights per class in a dictionary. The class with the highest total weight wins. A new test ``test_weighted_prediction`` confirms that a point close to class 0 is correctly classified even though the other class is present in the neighbour set. This extension demonstrates how the same KNN skeleton can be adapted for more sophisticated voting schemes.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": {
+    "passed": false,
+    "score": 0,
+    "findings_count": 0,
+    "error_count": 1,
+    "warning_count": 0,
+    "reviews": [],
+    "repair": {
+      "applied": false,
+      "summary": "Pipeline error: 'list' object has no attribute 'strip'",
+      "actions": [],
+      "remaining_issues": [
+        "'list' object has no attribute 'strip'"
+      ]
+    }
+  }
+}

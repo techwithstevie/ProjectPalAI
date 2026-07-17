@@ -1,0 +1,319 @@
+{
+  "id": "7acec1bb-7100-487f-ae97-ea6aa7a1778a",
+  "title": "Full‑Stack Todo App with Expo SDK‑54 and FastAPI",
+  "tagline": "Build a mobile Todo list in Expo (SDK‑54) backed by a Python FastAPI server",
+  "description": "In this beginner‑friendly tutorial we will create a complete, production‑ready Todo application. The front‑end is a React Native mobile app built with Expo SDK‑54, while the back‑end is a tiny FastAPI service written in Python 3.12+. You will learn how to set up a modern Python project, expose REST endpoints, test them, and then consume those endpoints from a mobile app.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "You need a simple way to keep track of personal tasks on a mobile device, but you also want to learn how a mobile front‑end talks to a Python back‑end over HTTP.",
+  "end_state": "When the tutorial is finished you will have:\n1. A FastAPI server that stores Todo items in memory and provides CRUD endpoints.\n2. A suite of pytest tests that verify the server works.\n3. An Expo SDK‑54 mobile app that displays the list of Todos and lets you add new ones.\n4. Clear instructions for running both parts locally.\n5. Optional challenges to extend the app.",
+  "prerequisites": [
+    "Basic familiarity with Python syntax.",
+    "Very little or no experience with JavaScript/React Native is required – we will explain each line.",
+    "Node.js (>=18) installed on your machine (for Expo).",
+    "Git installed."
+  ],
+  "learning_outcomes": [
+    "Create a modern Python project with pyproject.toml and type hints.",
+    "Define data models with Pydantic.",
+    "Write RESTful endpoints with FastAPI.",
+    "Test FastAPI routes using pytest and TestClient.",
+    "Initialize an Expo SDK‑54 project and install JavaScript dependencies.",
+    "Fetch data from a Python API using Axios inside a React Native component.",
+    "Combine front‑end and back‑end into a working full‑stack product."
+  ],
+  "repo_layout": [
+    "pyproject.toml",
+    "README.md",
+    "src/",
+    "src/__init__.py",
+    "src/models.py",
+    "src/main.py",
+    "tests/",
+    "tests/__init__.py",
+    "tests/test_main.py",
+    "expo_app/",
+    "expo_app/package.json",
+    "expo_app/app.json",
+    "expo_app/App.js"
+  ],
+  "stack": [
+    {
+      "name": "Python",
+      "version": ">=3.12",
+      "purpose": "Back‑end server and test suite"
+    },
+    {
+      "name": "FastAPI",
+      "version": ">=0.110.0",
+      "purpose": "Lightweight, async web framework for the API"
+    },
+    {
+      "name": "Uvicorn",
+      "version": ">=0.27.0",
+      "purpose": "ASGI server to run FastAPI"
+    },
+    {
+      "name": "Pydantic",
+      "version": ">=2.5.0",
+      "purpose": "Data validation and serialization"
+    },
+    {
+      "name": "Expo SDK",
+      "version": "54.0.0",
+      "purpose": "Cross‑platform mobile development"
+    },
+    {
+      "name": "React Native",
+      "version": "0.73.0",
+      "purpose": "UI layer for the mobile app"
+    },
+    {
+      "name": "Axios",
+      "version": ">=1.6.0",
+      "purpose": "HTTP client for the mobile app"
+    }
+  ],
+  "best_practices": [
+    "Keep the back‑end stateless for the tutorial – use in‑memory storage so you can focus on the API contract. Type‑hint every function, and let Pydantic enforce request validation. In the mobile app, always handle loading and error states, and keep the API URL in a single constant so it can be swapped for production later.",
+    "src layout + pyproject.toml",
+    "Type hints on public functions",
+    "Pinned dependency versions",
+    "pytest for core logic",
+    "Documented how_to_run entrypoint",
+    "Fixed seeds / reproducibility when randomness is used"
+  ],
+  "intro_transcript": "Hey everyone! Welcome to this beginner‑friendly project where we’ll build a full‑stack Todo app using Expo SDK‑54 on the front‑end and FastAPI on the back‑end. By the end of the next three hours you’ll have a working mobile app that talks to a Python server, plus a solid foundation in modern project layout, type hints, and testing. Let’s jump right in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Initialize the repository and Python project",
+      "goal": "Create a clean Git repo with a pyproject.toml and the src package.",
+      "bullets": [
+        "Run `git init` and create a virtual environment.",
+        "Add a minimal `pyproject.toml` that pins FastAPI, Uvicorn, and Pydantic.",
+        "Create the `src/` folder with an empty `__init__.py`."
+      ],
+      "speaker_notes": "First, open your terminal and create a new folder called `expo-todo`. Inside, run `git init` so we have version control from day one. Then create a virtual environment with `python -m venv .venv` and activate it. The heart of a modern Python project is the `pyproject.toml`. I’ll paste the contents for you – notice we pin exact minimum versions, we declare the required Python version, and we list our dependencies. After that we make a `src` directory and add an empty `__init__.py` so Python treats it as a package. Commit these initial files – this gives us a solid baseline before we write any code.",
+      "code": null,
+      "files_touched": [
+        "pyproject.toml",
+        "src/__init__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Add FastAPI skeleton",
+      "goal": "Create a FastAPI app with a simple health check endpoint.",
+      "bullets": [
+        "Create `src/main.py` and instantiate a FastAPI object.",
+        "Add a `/health` GET route that returns `{\"status\": \"ok\"}`.",
+        "Run the server with `uvicorn src.main:app --reload` to verify."
+      ],
+      "speaker_notes": "Now we’ll bring FastAPI to life. Inside `src/main.py` we import FastAPI and create an `app` instance. The first endpoint we add is `/health`. It’s a tiny GET request that returns a JSON payload confirming the service is up. This is a common pattern for monitoring and for our first manual test. After saving the file, we install the dependencies with `pip install -r requirements.txt` – actually the `pyproject.toml` already declares them, so `pip install .` works. Then start the server with `uvicorn src.main:app --reload`. Open a browser to `http://127.0.0.1:8000/health` and you should see `{\"status\":\"ok\"}`. Great – our back‑end is alive!",
+      "code": null,
+      "files_touched": [
+        "src/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Define the Todo data model",
+      "goal": "Use Pydantic to model Todo items and validation rules.",
+      "bullets": [
+        "Create `src/models.py` with `TodoBase`, `TodoCreate`, and `Todo` classes.",
+        "Add field constraints – title must be 1‑100 characters, completed defaults to false.",
+        "Export the models for use in the API routes."
+      ],
+      "speaker_notes": "Time to give our API a shape. In `src/models.py` we define three Pydantic classes. `TodoBase` holds the shared fields – a title string and a completed flag that defaults to false. `TodoCreate` inherits from `TodoBase` and is used for incoming POST data; it doesn’t add anything but makes the intent clear. Finally `Todo` adds an integer `id` field that we’ll generate on the server. Pydantic will automatically validate incoming JSON, rejecting empty titles or titles that are too long. Save the file, and we’ll import these models in the next step.",
+      "code": null,
+      "files_touched": [
+        "src/models.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Implement in‑memory storage and CRUD endpoints",
+      "goal": "Add GET `/todos` and POST `/todos` routes that use the models.",
+      "bullets": [
+        "Create a global list `todos` to hold Todo objects.",
+        "Implement `GET /todos` returning the list.",
+        "Implement `POST /todos` that creates a new Todo, assigns an incremental id, stores it, and returns it."
+      ],
+      "speaker_notes": "With the models ready we can now write the real business logic. In `src/main.py` we add a global list called `todos`. This is a simple in‑memory store – perfect for a tutorial because we don’t need a database. The `GET /todos` endpoint just returns that list, and FastAPI automatically serializes the `Todo` objects thanks to the response model. The `POST /todos` endpoint receives a `TodoCreate` payload, builds a new `Todo` with an auto‑incremented id, appends it to the list, and returns the newly created object with a 201 status code. Run the server again and test the endpoints with `curl` or your browser – you should be able to add and list tasks.",
+      "code": null,
+      "files_touched": [
+        "src/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Write unit tests for the API",
+      "goal": "Create pytest tests that verify health, creation, and retrieval of Todos.",
+      "bullets": [
+        "Create `tests/test_main.py`.",
+        "Use FastAPI’s `TestClient` to call the endpoints.",
+        "Assert status codes and response bodies."
+      ],
+      "speaker_notes": "Testing is a habit you’ll thank yourself for later. Inside the `tests` folder we add `test_main.py`. We import `TestClient` from FastAPI and instantiate it with our `app`. The first test hits `/health` and checks we get a 200 response with the expected JSON. The second test posts a new Todo, asserts we receive a 201 response, checks the returned object has an id of 1, and then calls `/todos` to make sure the list now contains exactly one item. Run the suite with `pytest -q`. If everything passes, you have confidence that the API contract works as intended.",
+      "code": null,
+      "files_touched": [
+        "tests/test_main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Run the test suite and start the server",
+      "goal": "Ensure the back‑end works before moving to the mobile side.",
+      "bullets": [
+        "Execute `pytest` and fix any failures.",
+        "Start the server with `uvicorn src.main:app --reload`.",
+        "Confirm the endpoints work with a browser or `curl`."
+      ],
+      "speaker_notes": "Let’s run the tests now. In your terminal, type `pytest`. You should see two passing tests. If something failed, double‑check the route definitions and model imports – a common mistake is forgetting to import `TodoCreate` in `main.py`. Once the tests pass, start the server again with `uvicorn src.main:app --reload`. Open `http://127.0.0.1:8000/todos` – you’ll see an empty array. Use a tool like Postman or `curl -X POST -H \"Content-Type: application/json\" -d '{\"title\":\"Learn Expo\"}' http://127.0.0.1:8000/todos` to add a Todo, then refresh the GET endpoint to see it appear. The back‑end is solid – time to move to the front‑end.",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 7,
+      "title": "Bootstrap the Expo SDK‑54 project",
+      "goal": "Create a new Expo app, install Axios, and configure the project.",
+      "bullets": [
+        "Run `npx create-expo-app expo_app --template blank`.",
+        "Select the JavaScript template (no TypeScript needed for beginners).",
+        "Open `expo_app/package.json` and set `expo` version to `~54.0.0`.",
+        "Install Axios with `npm install axios`."
+      ],
+      "speaker_notes": "Switching gears to the mobile side. In the repository root, run `npx create-expo-app expo_app --template blank`. This scaffolds a brand‑new Expo project inside the `expo_app` folder. When prompted, pick the plain JavaScript template – it keeps things simple. After the generation finishes, open `expo_app/package.json` and change the `expo` dependency to `~54.0.0` – that’s the SDK version we’re targeting. Then run `npm install axios` to bring in a lightweight HTTP client. Finally, run `npm start` (or `expo start`) to launch the Metro bundler. You should see the default “Open up App.js to start working on your app!” screen in the Expo Go app on your phone. Great – we have a running Expo project ready to consume our API.",
+      "code": null,
+      "files_touched": [
+        "expo_app/package.json"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Fetch and display Todos in the mobile UI",
+      "goal": "Write React Native code that calls the FastAPI `/todos` endpoint and renders a list.",
+      "bullets": [
+        "Replace the default component in `expo_app/App.js` with a functional component.",
+        "Use `useEffect` to call the API on mount.",
+        "Store the result in a `todos` state variable.",
+        "Render the list with `FlatList` and show a loading indicator while fetching."
+      ],
+      "speaker_notes": "Open `expo_app/App.js`. We’ll replace the starter code with a functional component that pulls data from our Python server. First, import `useEffect`, `useState`, and the UI components we need from `react-native`. Also import Axios. Define a constant `API_URL` – on Android emulators the special address `10.0.2.2` maps to your host machine’s localhost, so we’ll use `http://10.0.2.2:8000`. Inside the component we create two pieces of state: `todos` (an array) and `loading` (a boolean). In `useEffect` we call an async `fetchTodos` function that GETs `/todos`, updates the state, and toggles the loading flag. The render function shows an `ActivityIndicator` while loading, otherwise a `FlatList` that maps each Todo to a `Text` element. Save the file, go back to the Expo Go app, and you should see an empty list – that’s expected because we haven’t added any items yet. The UI now correctly talks to the back‑end.",
+      "code": null,
+      "files_touched": [
+        "expo_app/App.js"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 9,
+      "title": "Add a new Todo from the mobile app",
+      "goal": "Create a text input and button that POST a new Todo to the server.",
+      "bullets": [
+        "Add a `TextInput` bound to a `title` state variable.",
+        "Add a `Button` that triggers an `addTodo` async function.",
+        "`addTodo` POSTs to `/todos`, clears the input, and refreshes the list."
+      ],
+      "speaker_notes": "Now we’ll let the user create tasks. Below the list, add a `View` that contains a `TextInput` and a `Button`. Hook the `TextInput` up to a new `title` state variable using `onChangeText`. The button’s `onPress` calls an async `addTodo` function. Inside `addTodo` we guard against empty titles, then use Axios to POST `{ title }` to `${API_URL}/todos`. After a successful POST we clear the input and call `fetchTodos` again to update the UI. Save the file, reload the app (shake the device and select Reload), type a task like “Buy coffee”, press Add, and you should see the new item appear instantly. The mobile app now fully supports reading and creating Todos via our FastAPI server.",
+      "code": null,
+      "files_touched": [
+        "expo_app/App.js"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 10,
+      "title": "Run the full stack and test the experience",
+      "goal": "Start both the FastAPI server and the Expo app, verify end‑to‑end functionality.",
+      "bullets": [
+        "In one terminal run `uvicorn src.main:app --reload`.",
+        "In another terminal run `npm start` inside `expo_app`.",
+        "Open Expo Go on your phone, scan the QR code, and interact with the Todo list.",
+        "Optional: run `pytest` again to ensure nothing broke."
+      ],
+      "speaker_notes": "We’re almost there! Open two terminal windows. In the first, activate your Python virtual environment and run `uvicorn src.main:app --reload`. You should see the FastAPI server listening on port 8000. In the second terminal, `cd expo_app` and run `npm start`. The Metro bundler will launch and display a QR code. Open the Expo Go app on your phone, scan the code, and the app will load. Try adding a few tasks, close the app, reopen it – the list persists for the session because the server keeps the in‑memory data. Finally, run `pytest` one more time to confirm the back‑end still passes its tests. Congratulations – you’ve built a complete full‑stack Todo app with Expo SDK‑54 and FastAPI!",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "That’s it! You now have a working mobile Todo app powered by a modern Python API. You’ve learned how to structure a Python project with a pyproject.toml, write typed FastAPI routes, test them with pytest, and consume them from an Expo SDK‑54 React Native app. From here you can explore adding persistence with a real database, authentication, or more sophisticated UI components. Keep experimenting, and happy coding!",
+  "final_project_code": "# --- pyproject.toml ---\n[project]\nname = \"expo_todo_backend\"\nversion = \"0.1.0\"\ndescription = \"FastAPI backend for Expo Todo app\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"fastapi>=0.110.0\",\n    \"uvicorn[standard]>=0.27.0\",\n    \"pydantic>=2.5.0\"\n]\n\n[build-system]\nrequires = [\"setuptools>=61.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n# --- README.md ---\n# Expo Todo App (SDK‑54) + FastAPI Backend\n\nThis repository contains a **full‑stack** Todo application built for beginners:\n\n- **Backend** – FastAPI (Python 3.12+) exposing `/health`, `/todos` (GET) and `/todos` (POST).\n- **Frontend** – Expo SDK‑54 React Native app that displays the Todo list and lets you add new items.\n\n## How to run\n```bash\n# Clone the repo and cd into it\ngit clone <repo-url>\ncd expo-todo\n\n# ---------- Backend ----------\npython -m venv .venv\nsource .venv/bin/activate   # on Windows: .venv\\Scripts\\activate\npip install .\nuvicorn src.main:app --reload   # server runs on http://127.0.0.1:8000\n\n# Run tests\npytest -q\n\n# ---------- Frontend (Expo) ----------\ncd expo_app\nnpm install               # installs expo, react-native, axios, etc.\nnpm start                  # shows QR code for Expo Go\n```\n\nOpen the QR code with the Expo Go app on your phone (or an emulator) and you’ll see the Todo list UI.\n\n## Project structure\n```\npyproject.toml\nREADME.md\nsrc/\n    __init__.py\n    main.py\n    models.py\ntests/\n    __init__.py\n    test_main.py\nexpo_app/\n    package.json\n    app.json\n    App.js\n```\n\nHappy hacking!\n# --- src/__init__.py ---\n# This file marks the src directory as a Python package.\n# No code needed here.\n# --- src/models.py ---\nfrom pydantic import BaseModel, Field\n\nclass TodoBase(BaseModel):\n    title: str = Field(..., min_length=1, max_length=100)\n    completed: bool = False\n\nclass TodoCreate(TodoBase):\n    pass\n\nclass Todo(TodoBase):\n    id: int\n# --- src/main.py ---\nfrom fastapi import FastAPI, HTTPException\nfrom typing import List\nfrom .models import Todo, TodoCreate\n\napp = FastAPI(title=\"Expo Todo Backend\")\n\n# In‑memory storage for demo purposes\ntodos: List[Todo] = []\n\n@app.get(\"/health\")\ndef health() -> dict:\n    return {\"status\": \"ok\"}\n\n@app.get(\"/todos\", response_model=List[Todo])\ndef get_todos() -> List[Todo]:\n    return todos\n\n@app.post(\"/todos\", response_model=Todo, status_code=201)\ndef create_todo(todo: TodoCreate) -> Todo:\n    new_todo = Todo(id=len(todos) + 1, **todo.dict())\n    todos.append(new_todo)\n    return new_todo\n# --- tests/__init__.py ---\n# Empty file to make `tests` a package.\n# --- tests/test_main.py ---\nfrom fastapi.testclient import TestClient\nfrom src.main import app\n\nclient = TestClient(app)\n\ndef test_health():\n    response = client.get(\"/health\")\n    assert response.status_code == 200\n    assert response.json() == {\"status\": \"ok\"}\n\ndef test_create_and_get_todos():\n    # Create a todo\n    response = client.post(\"/todos\", json={\"title\": \"Buy milk\"})\n    assert response.status_code == 201\n    todo = response.json()\n    assert todo[\"id\"] == 1\n    assert todo[\"title\"] == \"Buy milk\"\n    assert todo[\"completed\"] is False\n\n    # Retrieve the list\n    response = client.get(\"/todos\")\n    assert response.status_code == 200\n    todos = response.json()\n    assert len(todos) == 1\n    assert todos[0][\"title\"] == \"Buy milk\"\n# --- expo_app/package.json ---\n{\n  \"name\": \"expo-todo-app\",\n  \"version\": \"1.0.0\",\n  \"main\": \"node_modules/expo/AppEntry.js\",\n  \"scripts\": {\n    \"start\": \"expo start\",\n    \"android\": \"expo run:android\",\n    \"ios\": \"expo run:ios\",\n    \"web\": \"expo start --web\"\n  },\n  \"dependencies\": {\n    \"expo\": \"~54.0.0\",\n    \"react\": \"18.2.0\",\n    \"react-native\": \"0.73.0\",\n    \"axios\": \"^1.6.0\"\n  },\n  \"devDependencies\": {\n    \"@babel/core\": \"^7.22.0\"\n  },\n  \"private\": true\n}\n# --- expo_app/app.json ---\n{\n  \"expo\": {\n    \"name\": \"ExpoTodoApp\",\n    \"slug\": \"expo-todo-app\",\n    \"version\": \"1.0.0\",\n    \"sdkVersion\": \"54.0.0\",\n    \"platforms\": [\"ios\", \"android\", \"web\"],\n    \"jsEngine\": \"hermes\"\n  }\n}\n# --- expo_app/App.js ---\nimport React, { useEffect, useState } from 'react';\nimport { StyleSheet, Text, View, FlatList, TextInput, Button, ActivityIndicator } from 'react-native';\nimport axios from 'axios';\n\n// Android emulator uses 10.0.2.2 to reach host localhost\nconst API_URL = 'http://10.0.2.2:8000';\n\nexport default function App() {\n  const [todos, setTodos] = useState([]);\n  const [title, setTitle] = useState('');\n  const [loading, setLoading] = useState(false);\n\n  const fetchTodos = async () => {\n    setLoading(true);\n    try {\n      const res = await axios.get(`${API_URL}/todos`);\n      setTodos(res.data);\n    } catch (e) {\n      console.error(e);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const addTodo = async () => {\n    if (!title.trim()) return;\n    try {\n      await axios.post(`${API_URL}/todos`, { title });\n      setTitle('');\n      fetchTodos();\n    } catch (e) {\n      console.error(e);\n    }\n  };\n\n  useEffect(() => {\n    fetchTodos();\n  }, []);\n\n  return (\n    <View style={styles.container}>\n      <Text style={styles.header}>Todo List</Text>\n      {loading ? (\n        <ActivityIndicator />\n      ) : (\n        <FlatList\n          data={todos}\n          keyExtractor={item => item.id.toString()}\n          renderItem={({ item }) => (\n            <Text style={styles.todo}>{item.title}</Text>\n          )}\n        />\n      )}\n      <View style={styles.inputContainer}>\n        <TextInput\n          style={styles.input}\n          placeholder=\"New todo\"\n          value={title}\n          onChangeText={setTitle}\n        />\n        <Button title=\"Add\" onPress={addTodo} />\n      </View>\n    </View>\n  );\n}\n\nconst styles = StyleSheet.create({\n  container: { flex: 1, paddingTop: 50, paddingHorizontal: 20 },\n  header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },\n  todo: { fontSize: 18, paddingVertical: 5 },\n  inputContainer: { flexDirection: 'row', marginTop: 20, alignItems: 'center' },\n  input: { flex: 1, borderWidth: 1, borderColor: '#ccc', padding: 8, marginRight: 10, borderRadius: 4 },\n});\n# --- END OF PROJECT ---",
+  "how_to_run": "```bash\n# Clone the repo and navigate into it\ngit clone <repo-url>\ncd expo-todo\n\n# ---------- Backend ----------\npython -m venv .venv\nsource .venv/bin/activate   # Windows: .venv\\\\Scripts\\\\activate\npip install .                # installs FastAPI, Uvicorn, Pydantic\nuvicorn src.main:app --reload   # starts the API on http://127.0.0.1:8000\n\n# Run the test suite (optional but recommended)\npytest -q\n\n# ---------- Frontend (Expo) ----------\ncd expo_app\nnpm install                 # installs expo, react‑native, axios, etc.\nnpm start                    # opens Metro bundler, shows QR code\n# Scan QR code with the Expo Go app on your phone (or run on an emulator).\n```\nMake sure the backend is running before launching the Expo app, otherwise the mobile UI will show an empty list.",
+  "challenges": [
+    {
+      "title": "Add a Delete endpoint",
+      "description": "Extend the FastAPI server with a `DELETE /todos/{todo_id}` route that removes a Todo from the in‑memory list.",
+      "build_process": "1. Open `src/main.py` and add a new route using the `@app.delete` decorator.\n2. Inside the handler, locate the Todo by `id`, remove it from the `todos` list, and return a 204 No Content response.\n3. Update `tests/test_main.py` with a new test that creates a Todo, deletes it, and asserts the list is empty.\n4. Run `pytest` to ensure the new test passes.\n5. (Optional) In the Expo app, add a trash‑icon button next to each Todo that calls the new endpoint.\n",
+      "solution_code": "# --- src/main.py (additional code) ---\n@app.delete(\"/todos/{todo_id}\", status_code=204)\ndef delete_todo(todo_id: int):\n    global todos\n    for i, t in enumerate(todos):\n        if t.id == todo_id:\n            del todos[i]\n            return\n    raise HTTPException(status_code=404, detail=\"Todo not found\")\n# --- tests/test_main.py (additional test) ---\ndef test_delete_todo():\n    # Create a todo first\n    response = client.post(\"/todos\", json={\"title\": \"Temp\"})\n    assert response.status_code == 201\n    todo_id = response.json()[\"id\"]\n    # Delete it\n    del_resp = client.delete(f\"/todos/{todo_id}\")\n    assert del_resp.status_code == 204\n    # Verify list is empty\n    list_resp = client.get(\"/todos\")\n    assert list_resp.json() == []\n",
+      "solution_walkthrough": "We added a `DELETE /todos/{todo_id}` endpoint that iterates over the global `todos` list, finds the matching item by its `id`, and removes it using `del`. If the item isn’t found we raise a 404 error. The route returns a 204 status code to indicate success with no body. In the test we first create a Todo, capture its generated `id`, then call the delete endpoint and assert the response status is 204. Finally we GET `/todos` again to confirm the list is empty, proving the delete logic works.",
+      "sample_output": null
+    },
+    {
+      "title": "Toggle completion status",
+      "description": "Add a `PATCH /todos/{todo_id}` endpoint that flips the `completed` flag of a Todo.",
+      "build_process": "1. Define a new Pydantic model `TodoUpdate` with an optional `completed` boolean.\n2. In `src/main.py` add a `@app.patch` route that receives `TodoUpdate`, finds the Todo, updates the field, and returns the updated object.\n3. Write a test that creates a Todo, patches it with `completed: true`, and asserts the response reflects the change.\n4. (Optional) In the Expo UI, make each Todo tappable to toggle its completed state.\n",
+      "solution_code": "# --- src/models.py (additional model) ---\nclass TodoUpdate(BaseModel):\n    completed: bool | None = None\n# --- src/main.py (additional route) ---\nfrom fastapi import Body\nfrom .models import TodoUpdate\n\n@app.patch(\"/todos/{todo_id}\", response_model=Todo)\ndef update_todo(todo_id: int, payload: TodoUpdate = Body(...)):\n    for i, t in enumerate(todos):\n        if t.id == todo_id:\n            updated_data = t.dict()\n            if payload.completed is not None:\n                updated_data[\"completed\"] = payload.completed\n            updated_todo = Todo(**updated_data)\n            todos[i] = updated_todo\n            return updated_todo\n    raise HTTPException(status_code=404, detail=\"Todo not found\")\n# --- tests/test_main.py (additional test) ---\ndef test_toggle_completed():\n    # Create a todo\n    resp = client.post(\"/todos\", json={\"title\": \"Read book\"})\n    todo = resp.json()\n    assert todo[\"completed\"] is False\n    # Toggle completed\n    patch_resp = client.patch(f\"/todos/{todo['id']}\", json={\"completed\": True})\n    assert patch_resp.status_code == 200\n    updated = patch_resp.json()\n    assert updated[\"completed\"] is True\n",
+      "solution_walkthrough": "We introduced a `TodoUpdate` model that contains an optional `completed` field. The `PATCH /todos/{todo_id}` endpoint receives this payload, finds the matching Todo in the in‑memory list, merges the new value (if provided) into a dictionary copy of the existing Todo, creates a new `Todo` instance, replaces the old entry, and returns the updated object. The test verifies that a newly created Todo starts with `completed: false`, then after the PATCH request the flag becomes `true`. This demonstrates partial updates and how to extend the API without breaking existing contracts.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": {
+    "passed": true,
+    "score": 100.0,
+    "reviews": [
+      {
+        "agent": "structure",
+        "passed": true,
+        "summary": "Structure OK",
+        "findings": []
+      },
+      {
+        "agent": "practices",
+        "passed": true,
+        "summary": "Practices OK",
+        "findings": []
+      },
+      {
+        "agent": "code",
+        "passed": false,
+        "summary": "1 code finding(s), 1 error(s)",
+        "findings": [
+          {
+            "agent": "code",
+            "severity": "info",
+            "code": "UNKNOWN",
+            "message": "agent='code' severity='error' code='TOO_FEW_CODE_STEPS' message='Only 0/10 steps include code' location='steps' suggestion='Most steps should ship code into the project'",
+            "location": "",
+            "suggestion": ""
+          }
+        ]
+      }
+    ],
+    "repair": {
+      "applied": true,
+      "summary": "Applied 1 deterministic fix(es)",
+      "actions": [
+        {
+          "action": "expand_best_practices",
+          "location": "best_practices",
+          "detail": "7 items"
+        }
+      ],
+      "remaining_issues": []
+    },
+    "findings_count": 1,
+    "error_count": 0,
+    "warning_count": 0
+  }
+}

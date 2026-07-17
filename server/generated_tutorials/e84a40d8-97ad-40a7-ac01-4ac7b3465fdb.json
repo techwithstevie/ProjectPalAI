@@ -1,0 +1,316 @@
+{
+  "id": "e84a40d8-97ad-40a7-ac01-4ac7b3465fdb",
+  "title": "LangChain‑FastAPI‑React Full‑Stack Chatbot",
+  "tagline": "Build a tiny AI‑powered chatbot with a FastAPI backend, LangChain, and a Vite‑React UI",
+  "description": "In this tutorial you will create a complete, production‑ready small web app that lets a user type a question, sends it to a FastAPI endpoint, forwards the request to a LangChain‑wrapped LLM (OpenAI), and displays the answer in a modern React UI built with Vite. You will learn how to wire the stack together, write type‑hinted Python code, and test the API.",
+  "difficulty": "beginner",
+  "size": "small",
+  "estimated_hours": 3.0,
+  "problem_statement": "Developers often need a quick way to prototype AI‑driven services without wrestling with complex infrastructure. The goal is to produce a minimal yet functional full‑stack chatbot that demonstrates the integration of LangChain, FastAPI, and a modern React frontend.",
+  "end_state": "A Git repository containing a FastAPI server exposing a `/chat` endpoint that calls an OpenAI LLM via LangChain, and a Vite‑React single‑page app that lets a user type a message and see the AI response. All code is type‑annotated, linted, and covered by a basic test suite.",
+  "prerequisites": [
+    "Python 3.12 installed",
+    "Node.js 20+ installed",
+    "An OpenAI API key (free tier works)",
+    "Basic familiarity with HTTP concepts"
+  ],
+  "learning_outcomes": [
+    "Set up a modern Python project with pyproject.toml and type hints",
+    "Create a FastAPI service and mount routers",
+    "Use LangChain to wrap an LLM call",
+    "Write a minimal Vite‑React frontend that talks to the backend",
+    "Run end‑to‑end tests with httpx and pytest"
+  ],
+  "repo_layout": [
+    "{'root_files': ['pyproject.toml', 'README.md'], 'src': ['app/__init__.py', 'app/main.py', 'app/api.py', 'app/models.py'], 'tests': ['test_api.py']}"
+  ],
+  "stack": [
+    {
+      "name": "python",
+      "version": ">=3.12",
+      "purpose": "Core language for backend logic"
+    },
+    {
+      "name": "fastapi",
+      "version": ">=0.115.0",
+      "purpose": "Web framework for the API layer"
+    },
+    {
+      "name": "uvicorn",
+      "version": ">=0.24.0",
+      "purpose": "ASGI server to run FastAPI"
+    },
+    {
+      "name": "langchain",
+      "version": ">=0.2.5",
+      "purpose": "Simplify LLM integration"
+    },
+    {
+      "name": "openai",
+      "version": ">=1.30.0",
+      "purpose": "Provides the LLM model"
+    },
+    {
+      "name": "pydantic",
+      "version": ">=2.7.0",
+      "purpose": "Data validation & serialization"
+    },
+    {
+      "name": "vite",
+      "version": ">=5.0.0",
+      "purpose": "Frontend dev server and bundler"
+    },
+    {
+      "name": "react",
+      "version": ">=18.2.0",
+      "purpose": "UI library for the client"
+    },
+    {
+      "name": "typescript",
+      "version": ">=5.4.0",
+      "purpose": "Static typing for the frontend"
+    }
+  ],
+  "best_practices": [
+    "Keep the backend pure Python – no JS in src/.",
+    "Use Pydantic models for request/response validation.",
+    "Never commit your OpenAI key – read it from an environment variable.",
+    "Run the frontend and backend on different ports and proxy via Vite for development.",
+    "Write at least one async test that hits the real FastAPI endpoint."
+  ],
+  "intro_transcript": "Hey everyone! Today we’re going to build a tiny but complete AI‑powered chatbot from scratch. We’ll stitch together LangChain, FastAPI, and a Vite‑React frontend, all in under three hours. By the end you’ll have a runnable repo you can clone, run, and extend. Let’s dive in!",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Initialize the Python project",
+      "goal": "Create a clean, modern Python package layout with a pinned pyproject.toml.",
+      "bullets": [
+        "Run `mkdir -p src/app tests`",
+        "Create `pyproject.toml` with required dependencies",
+        "Add an empty `src/app/__init__.py`"
+      ],
+      "speaker_notes": "First we set up the repository structure. I like to keep all source code under a `src/` folder – it makes imports explicit and works nicely with tools like pytest. We’ll also add a `tests/` folder for our unit tests. The `pyproject.toml` is the single source of truth for our dependencies, and we’ll pin each version to avoid surprises later.\n\nRun the commands I just mentioned, then open the new `pyproject.toml` and paste the content you see on the screen.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_1.py",
+        "code": "# --- pyproject.toml ---\n[project]\nname = \"langchain_fastapi_react\"\nversion = \"0.1.0\"\ndescription = \"A small full‑stack LangChain chatbot\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"fastapi>=0.115.0\",\n    \"uvicorn[standard]>=0.24.0\",\n    \"langchain>=0.2.5\",\n    \"openai>=1.30.0\",\n    \"pydantic>=2.7.0\",\n]\n\n[build-system]\nrequires = [\"setuptools>=70.0\"]\nbuild-backend = \"setuptools.build_meta\"",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "pyproject.toml",
+        "src/app/__init__.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 2,
+      "title": "Add Pydantic models",
+      "goal": "Define request and response schemas for the chat endpoint.",
+      "bullets": [
+        "Create `src/app/models.py`",
+        "Add `ChatRequest` with a single `message: str` field",
+        "Add `ChatResponse` with `answer: str`"
+      ],
+      "speaker_notes": "FastAPI leans heavily on Pydantic for data validation. By declaring models up front we get automatic JSON parsing, validation, and OpenAPI docs for free. Let’s write two tiny models – one for the incoming user message and one for the LLM answer we’ll send back.\n\nOpen `src/app/models.py` and type the code shown.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_2.py",
+        "code": "# --- src/app/models.py ---\nfrom pydantic import BaseModel, Field\n\nclass ChatRequest(BaseModel):\n    \"\"\"Payload sent by the frontend.\"\"\"\n    message: str = Field(..., description=\"User's question to the LLM\")\n\nclass ChatResponse(BaseModel):\n    \"\"\"Payload returned to the frontend.\"\"\"\n    answer: str = Field(..., description=\"LLM's answer\")",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/app/models.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 3,
+      "title": "Wire FastAPI and LangChain",
+      "goal": "Create the FastAPI app, a router, and the `/chat` endpoint that calls OpenAI via LangChain.",
+      "bullets": [
+        "Create `src/app/api.py` with an APIRouter",
+        "Instantiate a LangChain `ChatOpenAI` chain",
+        "Implement async `chat` handler that returns `ChatResponse`"
+      ],
+      "speaker_notes": "Now the fun part – connecting to an LLM. LangChain gives us a thin wrapper around OpenAI’s chat completion API. We’ll create a router so the main app stays tidy, and expose a single POST `/chat` endpoint. Remember to read the OpenAI key from the environment – never hard‑code it.\n\nLet’s write the code together.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_3.py",
+        "code": "# --- src/app/api.py ---\nimport os\nfrom fastapi import APIRouter, HTTPException\nfrom langchain.chat_models import ChatOpenAI\nfrom .models import ChatRequest, ChatResponse\n\nrouter = APIRouter()\n\n# LangChain LLM – reads OPENAI_API_KEY from env automatically\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\n\n@router.post(\"/chat\", response_model=ChatResponse)\nasync def chat(request: ChatRequest) -> ChatResponse:\n    \"\"\"Receive a user message, forward it to OpenAI, and return the answer.\"\"\"\n    if not os.getenv(\"OPENAI_API_KEY\"):\n        raise HTTPException(status_code=500, detail=\"OpenAI API key not set\")\n    try:\n        answer = await llm.ainvoke(request.message)\n        return ChatResponse(answer=answer)\n    except Exception as exc:\n        raise HTTPException(status_code=502, detail=str(exc))",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/app/api.py"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 4,
+      "title": "Create the FastAPI entry point",
+      "goal": "Instantiate the FastAPI app and include the router.",
+      "bullets": [
+        "Create `src/app/main.py`",
+        "Add CORS middleware for the React dev server",
+        "Include the `api` router under `/api`"
+      ],
+      "speaker_notes": "The `main.py` file is what `uvicorn` will import. We also need CORS so our Vite dev server (running on port 5173) can talk to the backend without browser complaints. Let’s add the code now.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_4.py",
+        "code": "# --- src/app/main.py ---\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom .api import router as chat_router\n\napp = FastAPI(title=\"LangChain Chatbot API\")\n\n# Allow the React dev server to call the API\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"http://localhost:5173\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\napp.include_router(chat_router, prefix=\"/api\")\n\n# Health check\n@app.get(\"/health\")\nasync def health() -> dict[str, str]:\n    return {\"status\": \"ok\"}",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "src/app/main.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 5,
+      "title": "Write the first async test",
+      "goal": "Validate that the `/api/chat` endpoint returns a 200 response for a mock request.",
+      "bullets": [
+        "Create `tests/test_api.py`",
+        "Use `httpx.AsyncClient` with the FastAPI app",
+        "Patch the LangChain LLM to avoid real API calls"
+      ],
+      "speaker_notes": "Testing is essential even for a tiny project. We’ll spin up the FastAPI app in memory with `httpx.AsyncClient`. To keep the test fast and deterministic we’ll monkey‑patch the LangChain LLM’s `ainvoke` method to return a canned answer.\n\nOpen `tests/test_api.py` and copy the snippet.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_5.py",
+        "code": "# --- tests/test_api.py ---\nimport asyncio\nfrom unittest.mock import AsyncMock, patch\nimport pytest\nfrom httpx import AsyncClient\nfrom src.app.main import app\n\n@pytest.mark.asyncio\nasync def test_chat_endpoint_returns_answer():\n    mock_answer = \"Hello from the mocked LLM\"\n    # Patch the LangChain LLM's ainvoke method\n    with patch(\"src.app.api.llm.ainvoke\", new=AsyncMock(return_value=mock_answer)):\n        async with AsyncClient(app=app, base_url=\"http://testserver\") as client:\n            payload = {\"message\": \"Hi\"}\n            response = await client.post(\"/api/chat\", json=payload)\n            assert response.status_code == 200\n            data = response.json()\n            assert data[\"answer\"] == mock_answer\n\n# Run with: pytest -q",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "tests/test_api.py"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 6,
+      "title": "Bootstrap the Vite‑React frontend",
+      "goal": "Create a React project with Vite, TypeScript, and a simple chat UI.",
+      "bullets": [
+        "Run `npm create vite@latest client -- --template react-ts`",
+        "Install `axios` for HTTP calls",
+        "Add a proxy entry in `vite.config.ts` to forward `/api` to `http://localhost:8000`"
+      ],
+      "speaker_notes": "Switching to the frontend now. Vite gives us a lightning‑fast dev server, and the React‑TS template saves us from configuring Babel ourselves. The proxy makes API calls look like they’re same‑origin, which sidesteps CORS during development.\n\nAfter the `npm create` command, open `client/vite.config.ts` and add the proxy configuration shown.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_6.py",
+        "code": "// --- client/vite.config.ts ---\nimport { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    proxy: {\n      '/api': {\n        target: 'http://127.0.0.1:8000',\n        changeOrigin: true,\n        secure: false,\n      },\n    },\n  },\n});",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "client/vite.config.ts"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 7,
+      "title": "Build the Chat UI component",
+      "goal": "Create a React component that sends a message to `/api/chat` and displays the response.",
+      "bullets": [
+        "Edit `src/App.tsx`",
+        "Add a textarea, a button, and a result area",
+        "Use `axios.post('/api/chat', {message})`",
+        "Show a loading spinner while awaiting the response"
+      ],
+      "speaker_notes": "Now we write the UI. The component holds three pieces of state: the user’s input, the answer from the LLM, and a loading flag. When the button is clicked we POST to `/api/chat`. Because of the Vite proxy we can just call `/api/chat` without specifying the host.\n\nCopy the code below into `client/src/App.tsx`.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_7.py",
+        "code": "// --- client/src/App.tsx ---\nimport { useState } from 'react';\nimport axios from 'axios';\nimport './App.css';\n\nfunction App() {\n  const [message, setMessage] = useState('');\n  const [answer, setAnswer] = useState('');\n  const [loading, setLoading] = useState(false);\n\n  const handleSend = async () => {\n    if (!message.trim()) return;\n    setLoading(true);\n    try {\n      const resp = await axios.post('/api/chat', { message });\n      setAnswer(resp.data.answer);\n    } catch (e) {\n      console.error(e);\n      setAnswer('Error contacting the server');\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return (\n    <div className=\"container mx-auto p-4\">\n      <h1 className=\"text-2xl font-bold mb-4\">LangChain Chatbot</h1>\n      <textarea\n        className=\"w-full border rounded p-2 mb-2\"\n        rows={4}\n        value={message}\n        onChange={e => setMessage(e.target.value)}\n        placeholder=\"Ask me anything...\"\n      />\n      <button\n        className=\"bg-blue-600 text-white px-4 py-2 rounded\"\n        onClick={handleSend}\n        disabled={loading}\n      >\n        {loading ? 'Thinking…' : 'Send'}\n      </button>\n      {answer && (\n        <div className=\"mt-4 p-2 border rounded bg-gray-100\">\n          <strong>Answer:</strong>\n          <p>{answer}</p>\n        </div>\n      )}\n    </div>\n  );\n}\n\nexport default App;",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "client/src/App.tsx"
+      ],
+      "is_checkpoint": false
+    },
+    {
+      "step_number": 8,
+      "title": "Add Tailwind for quick styling",
+      "goal": "Install Tailwind CSS and configure it so the UI looks decent without custom CSS.",
+      "bullets": [
+        "Run `npm i -D tailwindcss postcss autoprefixer`",
+        "Initialize Tailwind with `npx tailwindcss init -p`",
+        "Add Tailwind directives to `src/index.css`",
+        "Import the CSS file in `main.tsx`"
+      ],
+      "speaker_notes": "Styling from scratch can be noisy, so we’ll use Tailwind. It works out‑of‑the‑box with Vite. After installing the dev dependencies, we generate the config files, then add the `@tailwind` directives. Finally, we import the stylesheet in `main.tsx`. This gives us a clean, responsive layout with just a few utility classes we already used in the component.\n\nRun the commands, then edit the files as shown.",
+      "code": {
+        "language": "python",
+        "file_path": "src/step_8.py",
+        "code": "// --- client/src/index.css ---\n@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n// --- client/src/main.tsx ---\nimport React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);",
+        "explanation": "",
+        "expected_output": null,
+        "best_practice_notes": null
+      },
+      "files_touched": [
+        "client/src/index.css",
+        "client/src/main.tsx"
+      ],
+      "is_checkpoint": true
+    },
+    {
+      "step_number": 9,
+      "title": "Run, test, and ship the project",
+      "goal": "Start both backend and frontend, verify the end‑to‑end flow, and document how to run the app.",
+      "bullets": [
+        "Start FastAPI: `uvicorn src.app.main:app --reload`",
+        "Start Vite: `npm run dev` inside the `client` folder",
+        "Open `http://localhost:5173` and chat with the AI",
+        "Run `pytest` to ensure the test passes"
+      ],
+      "speaker_notes": "We’re almost there! Open two terminals – one for the backend and one for the frontend. The backend runs on port 8000, the Vite dev server on 5173. Thanks to the proxy we set up earlier, the React app can call `/api/chat` directly. Try typing a question, hit Send, and watch the answer appear. Finally, run the test suite to confirm everything works in isolation.\n\nThat’s the full product! You now have a minimal but production‑ready AI chatbot stack.",
+      "code": null,
+      "files_touched": [],
+      "is_checkpoint": false
+    }
+  ],
+  "outro_transcript": "Congratulations! You just built a full‑stack LangChain chatbot from zero to a working UI. You’ve seen how to structure a modern Python project, expose an async FastAPI endpoint, call an LLM with LangChain, and connect it to a Vite‑React frontend. Feel free to experiment – add a conversation history, swap the model, or deploy the backend to a cloud provider. Thanks for watching, and happy coding!",
+  "final_project_code": "# --- pyproject.toml ---\n[project]\nname = \"langchain_fastapi_react\"\nversion = \"0.1.0\"\ndescription = \"A small full‑stack LangChain chatbot\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"fastapi>=0.115.0\",\n    \"uvicorn[standard]>=0.24.0\",\n    \"langchain>=0.2.5\",\n    \"openai>=1.30.0\",\n    \"pydantic>=2.7.0\",\n]\n\n[build-system]\nrequires = [\"setuptools>=70.0\"]\nbuild-backend = \"setuptools.build_meta\"\n\n# --- README.md ---\n# LangChain‑FastAPI‑React Chatbot\n\nA tiny full‑stack application that demonstrates how to combine **FastAPI**, **LangChain**, and a **Vite‑React** frontend to build an AI‑powered chatbot.\n\n## Features\n- FastAPI backend with a `/api/chat` endpoint\n- LangChain wrapper around OpenAI's `gpt-4o-mini`\n- Type‑annotated Python code and Pydantic models\n- Vite‑React TypeScript frontend with Tailwind CSS\n- Basic async test suite using `httpx`\n\n## Quick start\n```bash\n# Clone the repo\ngit clone <repo-url>\ncd langchain_fastapi_react\n\n# Backend setup\npython -m venv .venv\nsource .venv/bin/activate\npip install -e .\nexport OPENAI_API_KEY=your-key-here\nuvicorn src.app.main:app --reload\n```\nIn another terminal:\n```bash\ncd client\nnpm install\nnpm run dev\n```\nOpen http://localhost:5173 and start chatting!\n\n# --- src/app/__init__.py ---\n\"\"\"Application package for the LangChain chatbot backend.\"\"\"\n\n# --- src/app/models.py ---\nfrom pydantic import BaseModel, Field\n\nclass ChatRequest(BaseModel):\n    \"\"\"Payload sent by the frontend.\"\"\"\n    message: str = Field(..., description=\"User's question to the LLM\")\n\nclass ChatResponse(BaseModel):\n    \"\"\"Payload returned to the frontend.\"\"\"\n    answer: str = Field(..., description=\"LLM's answer\")\n\n# --- src/app/api.py ---\nimport os\nfrom fastapi import APIRouter, HTTPException\nfrom langchain.chat_models import ChatOpenAI\nfrom .models import ChatRequest, ChatResponse\n\nrouter = APIRouter()\n\n# LangChain LLM – reads OPENAI_API_KEY from env automatically\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\n\n@router.post(\"/chat\", response_model=ChatResponse)\nasync def chat(request: ChatRequest) -> ChatResponse:\n    \"\"\"Receive a user message, forward it to OpenAI, and return the answer.\"\"\"\n    if not os.getenv(\"OPENAI_API_KEY\"):\n        raise HTTPException(status_code=500, detail=\"OpenAI API key not set\")\n    try:\n        answer = await llm.ainvoke(request.message)\n        return ChatResponse(answer=answer)\n    except Exception as exc:\n        raise HTTPException(status_code=502, detail=str(exc))\n\n# --- src/app/main.py ---\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom .api import router as chat_router\n\napp = FastAPI(title=\"LangChain Chatbot API\")\n\n# Allow the React dev server to call the API\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"http://localhost:5173\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\napp.include_router(chat_router, prefix=\"/api\")\n\n@app.get(\"/health\")\nasync def health() -> dict[str, str]:\n    return {\"status\": \"ok\"}\n\n# --- tests/test_api.py ---\nimport asyncio\nfrom unittest.mock import AsyncMock, patch\nimport pytest\nfrom httpx import AsyncClient\nfrom src.app.main import app\n\n@pytest.mark.asyncio\nasync def test_chat_endpoint_returns_answer():\n    mock_answer = \"Hello from the mocked LLM\"\n    # Patch the LangChain LLM's ainvoke method\n    with patch(\"src.app.api.llm.ainvoke\", new=AsyncMock(return_value=mock_answer)):\n        async with AsyncClient(app=app, base_url=\"http://testserver\") as client:\n            payload = {\"message\": \"Hi\"}\n            response = await client.post(\"/api/chat\", json=payload)\n            assert response.status_code == 200\n            data = response.json()\n            assert data[\"answer\"] == mock_answer\n\n# Run with: pytest -q\n\n# --- client/vite.config.ts ---\nimport { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    proxy: {\n      '/api': {\n        target: 'http://127.0.0.1:8000',\n        changeOrigin: true,\n        secure: false,\n      },\n    },\n  },\n});\n\n# --- client/src/App.tsx ---\nimport { useState } from 'react';\nimport axios from 'axios';\nimport './App.css';\n\nfunction App() {\n  const [message, setMessage] = useState('');\n  const [answer, setAnswer] = useState('');\n  const [loading, setLoading] = useState(false);\n\n  const handleSend = async () => {\n    if (!message.trim()) return;\n    setLoading(true);\n    try {\n      const resp = await axios.post('/api/chat', { message });\n      setAnswer(resp.data.answer);\n    } catch (e) {\n      console.error(e);\n      setAnswer('Error contacting the server');\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return (\n    <div className=\"container mx-auto p-4\">\n      <h1 className=\"text-2xl font-bold mb-4\">LangChain Chatbot</h1>\n      <textarea\n        className=\"w-full border rounded p-2 mb-2\"\n        rows={4}\n        value={message}\n        onChange={e => setMessage(e.target.value)}\n        placeholder=\"Ask me anything...\"\n      />\n      <button\n        className=\"bg-blue-600 text-white px-4 py-2 rounded\"\n        onClick={handleSend}\n        disabled={loading}\n      >\n        {loading ? 'Thinking…' : 'Send'}\n      </button>\n      {answer && (\n        <div className=\"mt-4 p-2 border rounded bg-gray-100\">\n          <strong>Answer:</strong>\n          <p>{answer}</p>\n        </div>\n      )}\n    </div>\n  );\n}\n\nexport default App;\n\n# --- client/src/index.css ---\n@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n# --- client/src/main.tsx ---\nimport React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);",
+  "how_to_run": "```bash\n# 1️⃣ Clone the repo and cd into it\ngit clone <repo-url>\ncd langchain_fastapi_react\n\n# 2️⃣ Backend setup (Python 3.12+)\npython -m venv .venv\nsource .venv/bin/activate\npip install -e .\nexport OPENAI_API_KEY=your-openai-key   # <-- set your key\nuvicorn src.app.main:app --reload   # runs on http://127.0.0.1:8000\n\n# 3️⃣ Frontend setup (in a second terminal)\ncd client\nnpm install\nnpm run dev   # Vite dev server at http://localhost:5173\n\n# 4️⃣ Open the browser at http://localhost:5173, type a question and hit **Send**.\n\n# 5️⃣ Run the test suite\ncd ..\npytest -q\n```",
+  "challenges": [
+    {
+      "title": "Add conversation history",
+      "description": "Extend the backend so each request can include an optional list of previous messages, and modify the frontend to display the full chat transcript.",
+      "build_process": "1. Update `ChatRequest` to accept `history: list[dict[str, str]]` where each dict has `role` (`user` or `assistant`) and `content`.\\n2. In `api.py`, prepend the history to the current message before calling `llm.ainvoke`.\\n3. Change the React state to keep an array of `{role, content}` objects and render them above the input box.\\n4. Adjust the test to mock a request with history and assert the response shape.",
+      "solution_code": "# Backend changes (src/app/models.py)\nclass ChatMessage(BaseModel):\n    role: Literal[\"user\", \"assistant\"]\n    content: str\n\nclass ChatRequest(BaseModel):\n    message: str\n    history: list[ChatMessage] = Field(default_factory=list)\n\n# src/app/api.py (modified handler)\n@router.post(\"/chat\", response_model=ChatResponse)\nasync def chat(request: ChatRequest) -> ChatResponse:\n    if not os.getenv(\"OPENAI_API_KEY\"):\n        raise HTTPException(status_code=500, detail=\"OpenAI API key not set\")\n    # Build the full conversation list for LangChain\n    conversation = [\n        {\"role\": msg.role, \"content\": msg.content} for msg in request.history\n    ]\n    conversation.append({\"role\": \"user\", \"content\": request.message})\n    try:\n        answer = await llm.ainvoke(conversation)\n        return ChatResponse(answer=answer)\n    except Exception as exc:\n        raise HTTPException(status_code=502, detail=str(exc))\n\n# Frontend changes (client/src/App.tsx) – abbreviated\ninterface ChatEntry { role: 'user' | 'assistant'; content: string; }\nconst [history, setHistory] = useState<ChatEntry[]>([]);\nconst handleSend = async () => {\n  const payload = { message, history };\n  const resp = await axios.post('/api/chat', payload);\n  setHistory([...history, { role: 'user', content: message }, { role: 'assistant', content: resp.data.answer }]);\n  setMessage('');\n};\n// Render history before the textarea\n{history.map((e,i) => (\n  <div key={i} className={e.role === 'user' ? 'text-right' : 'text-left'}>\n    <span className={e.role === 'user' ? 'font-bold' : ''}>{e.content}</span>\n  </div>\n))}",
+      "solution_walkthrough": "We first introduced a new `ChatMessage` model that mirrors the OpenAI chat format (`role` and `content`). The `ChatRequest` now carries an optional `history` list. In the endpoint we build a full conversation list by converting each `ChatMessage` to a dict and appending the new user message. LangChain’s `ChatOpenAI.ainvoke` can accept this list directly, returning the assistant’s reply.\n\nOn the React side we keep a `history` state array of objects with `role` and `content`. When the user clicks **Send**, we POST both the current message and the accumulated history. The response’s answer is appended to the history, and the UI maps over the array to render each entry, styling user messages on the right and assistant messages on the left. This gives a simple chat‑like experience while keeping the backend stateless.",
+      "sample_output": null
+    }
+  ],
+  "quality_report": {
+    "passed": false,
+    "score": 0,
+    "findings_count": 0,
+    "error_count": 1,
+    "warning_count": 0,
+    "reviews": [],
+    "repair": {
+      "applied": false,
+      "summary": "Pipeline error: 'list' object has no attribute 'strip'",
+      "actions": [],
+      "remaining_issues": [
+        "'list' object has no attribute 'strip'"
+      ]
+    }
+  }
+}
